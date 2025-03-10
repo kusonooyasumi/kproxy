@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { Pane, Splitpanes } from 'svelte-splitpanes';
   import { onMount, onDestroy, createEventDispatcher } from 'svelte';
   import { writable } from 'svelte/store';
   import type { Writable } from 'svelte/store';
@@ -514,222 +515,252 @@
   });
 </script>
 
-<!-- Requests Tab Content -->
-<div class="requests-container">
-<!-- Request Controls -->
-  <div class="request-controls">
-    <div class="control-group">
-      <div class="status-indicator" class:running={proxyStatus.isRunning} title={proxyStatus.isRunning ? 'Proxy Running' : 'Proxy Stopped'}>
-        <div class="status-dot"></div>
-        <span>Proxy {proxyStatus.isRunning ? 'Running' : 'Stopped'}</span>
-      </div>
-      
-      <div class="control-buttons">
-        <button class="control-button" on:click={clearRequests}>Clear Requests</button>
-      <div class="filter-dropdown">
-          <button class="control-button" class:active={scopeOnly} on:click={toggleFilterOptions}>
-            Filter {scopeOnly ? '(Active)' : ''}
-            <span class="dropdown-arrow">▼</span>
-          </button>
-          
-          {#if showFilterOptions}
-            <div class="dropdown-content">
-              <label class="filter-option">
-                <input type="checkbox" bind:checked={scopeOnly}>
-                <span>In scope items only</span>
-              </label>
-              {#if scopeOnly && filteredRequests.length === 0 && requests.length > 0}
-                <div class="filter-warning">No requests match the current scope</div>
-              {/if}
-            </div>
-          {/if}
-        </div>
-      </div>
-    </div>
-  </div>
-  
-  <!-- Certificate Installation Instructions Modal -->
-  {#if showCertInstructions}
-    <div class="modal-overlay">
-      <div class="modal-container">
-        <div class="modal-header">
-          <h3>CA Certificate Installation Instructions</h3>
-          <button class="close-button" on:click={() => showCertInstructions = false}>×</button>
-        </div>
-        <div class="modal-content">
-          <div class="instruction-section">
-            <h4>Windows</h4>
-            <p>{certInstructions.windows}</p>
-          </div>
-          <div class="instruction-section">
-            <h4>macOS</h4>
-            <p>{certInstructions.macos}</p>
-          </div>
-          <div class="instruction-section">
-            <h4>Firefox</h4>
-            <p>{certInstructions.firefox}</p>
-          </div>
-          <div class="instruction-section">
-            <h4>Chrome/Edge</h4>
-            <p>{certInstructions.chrome}</p>
-          </div>
-          <div class="modal-footer">
-            <button on:click={() => showCertInstructions = false}>Close</button>
-          </div>
-        </div>
-      </div>
-    </div>
-  {/if}
-  
-  <!-- Loading State -->
-  {#if loading}
-    <div class="loading-overlay">
-      <div class="loading-spinner"></div>
-      <div>Loading...</div>
-    </div>
-  {/if}
-  
-  <!-- Table Container -->
-  <div class="table-container">
-    <table class="request-table">
-      <thead>
-        <tr>
-          <th>ID</th>
-          <th>Protocol</th>
-          <th>Host</th>
-          <th>Method</th>
-          <th>Path</th>
-          <th>Status</th>
-          <th>Response Size</th>
-          <th>Time (ms)</th>
-          <th>Timestamp</th>
-        </tr>
-      </thead>
-      <tbody>
-        {#if requests.length === 0}
-          <tr>
-            <td colspan="9" class="no-requests">
-              {#if proxyStatus.isRunning}
-                No requests captured yet. Configure your browser to use proxy at localhost:{proxyStatus.port}
-              {:else}
-                Start the proxy server to capture HTTP/HTTPS requests
-              {/if}
-            </td>
-          </tr>
-        {:else}
-          {#each filteredRequests as request (request.id)}
-            <tr 
-              class:selected={selectedRequest && selectedRequest.id === request.id}
-              class:error={request.error}
-              on:click={() => selectRequest(request)}
-              on:contextmenu={(e) => showContextMenu(e, request)}
-            >
-              <td>{request.id}</td>
-              <td>{request.protocol}</td>
-              <td>{request.host}</td>
-              <td class="method {request.method.toLowerCase()}">{request.method}</td>
-              <td class="path">{request.path}</td>
-              <td class="status">
-                {#if request.status}
-                  <span class="status-code status-{Math.floor(request.status / 100)}xx">{request.status}</span>
-                {:else}
-                  -
-                {/if}
-              </td>
-              <td>{request.responseLength ? request.responseLength : '-'}</td>
-              <td>{request.responseTime ? request.responseTime : '-'}</td>
-              <td>{formatDate(request.timestamp)}</td>
-            </tr>
-          {/each}
-        {/if}
-      </tbody>
-    </table>
-  </div>
-  
-  <!-- Bottom Container -->
-  <div class="bottom-container">
-    {#if selectedRequest}
-      <!-- Split View for Request and Response -->
-      <div class="split-view">
-        <!-- Request Panel -->
-        <div class="panel request-panel" on:contextmenu={(e) => showPanelContextMenu(e)}>
-          <div class="panel-header">
-            <h3>Request</h3>
-          </div>
-          <div class="panel-content">
-            <div class="line-numbers-wrapper">
-              {#if selectedRequest}
-                {@const requestLines = formatFullRequest(selectedRequest).split('\n')}
-                <div class="line-numbers">
-                  {#each Array(requestLines.length) as _, i}
-                    <div class="line-number">{i + 1}</div>
-                  {/each}
-                </div>
-                <pre class="content-block">{formatFullRequest(selectedRequest)}</pre>
-              {/if}
-            </div>
-          </div>
+<Splitpanes theme="no-splitter" horizontal style="" dblClickSplitter={false}>
+  <Pane size={10} minSize={10} maxSize={10}>
+    <div class="request-controls">
+      <div class="control-group">
+        <div class="status-indicator" class:running={proxyStatus.isRunning} title={proxyStatus.isRunning ? 'Proxy Running' : 'Proxy Stopped'}>
+          <div class="status-dot"></div>
+          <span>Proxy {proxyStatus.isRunning ? 'Running' : 'Stopped'}</span>
         </div>
         
-        <!-- Response Panel -->
-        <div class="panel response-panel">
-          <div class="panel-header">
-            <h3>Response</h3>
+        <div class="control-buttons">
+          <button class="control-button" on:click={clearRequests}>Clear Requests</button>
+        <div class="filter-dropdown">
+            <button class="control-button" class:active={scopeOnly} on:click={toggleFilterOptions}>
+              Filter {scopeOnly ? '(Active)' : ''}
+              <span class="dropdown-arrow">▼</span>
+            </button>
+            
+            {#if showFilterOptions}
+              <div class="dropdown-content">
+                <label class="filter-option">
+                  <input type="checkbox" bind:checked={scopeOnly}>
+                  <span>In scope items only</span>
+                </label>
+                {#if scopeOnly && filteredRequests.length === 0 && requests.length > 0}
+                  <div class="filter-warning">No requests match the current scope</div>
+                {/if}
+              </div>
+            {/if}
           </div>
-          <div class="panel-content">
-            <div class="line-numbers-wrapper">
-              {#if selectedRequest}
-                {@const responseLines = formatFullResponse(selectedRequest).split('\n')}
-                <div class="line-numbers">
-                  {#each Array(responseLines.length) as _, i}
-                    <div class="line-number">{i + 1}</div>
-                  {/each}
-                </div>
-                <pre class="content-block">{formatFullResponse(selectedRequest)}</pre>
-              {/if}
+        </div>
+      </div>
+    </div>
+    
+    <!-- Certificate Installation Instructions Modal -->
+    {#if showCertInstructions}
+      <div class="modal-overlay">
+        <div class="modal-container">
+          <div class="modal-header">
+            <h3>CA Certificate Installation Instructions</h3>
+            <button class="close-button" on:click={() => showCertInstructions = false}>×</button>
+          </div>
+          <div class="modal-content">
+            <div class="instruction-section">
+              <h4>Windows</h4>
+              <p>{certInstructions.windows}</p>
+            </div>
+            <div class="instruction-section">
+              <h4>macOS</h4>
+              <p>{certInstructions.macos}</p>
+            </div>
+            <div class="instruction-section">
+              <h4>Firefox</h4>
+              <p>{certInstructions.firefox}</p>
+            </div>
+            <div class="instruction-section">
+              <h4>Chrome/Edge</h4>
+              <p>{certInstructions.chrome}</p>
+            </div>
+            <div class="modal-footer">
+              <button on:click={() => showCertInstructions = false}>Close</button>
             </div>
           </div>
         </div>
       </div>
-    {:else}
-      <div class="no-selection">
-        <p>Select a request to view details</p>
+    {/if}
+    
+    <!-- Loading State -->
+    {#if loading}
+      <div class="loading-overlay">
+        <div class="loading-spinner"></div>
+        <div>Loading...</div>
       </div>
     {/if}
-  </div>
-</div>
+  </Pane>
+  <Pane>
+    <Splitpanes theme="modern-theme" horizontal style="">
+      <Pane>
+        <div class="table-container">
+          <table class="request-table">
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Protocol</th>
+                <th>Host</th>
+                <th>Method</th>
+                <th>Path</th>
+                <th>Status</th>
+                <th>Response Size</th>
+                <th>Time (ms)</th>
+                <th>Timestamp</th>
+              </tr>
+            </thead>
+            <tbody>
+              {#if requests.length === 0}
+                <tr>
+                  <td colspan="9" class="no-requests">
+                    {#if proxyStatus.isRunning}
+                      No requests captured yet. Configure your browser to use proxy at localhost:{proxyStatus.port}
+                    {:else}
+                      Start the proxy server to capture HTTP/HTTPS requests
+                    {/if}
+                  </td>
+                </tr>
+              {:else}
+                {#each filteredRequests as request (request.id)}
+                  <tr 
+                    class:selected={selectedRequest && selectedRequest.id === request.id}
+                    class:error={request.error}
+                    on:click={() => selectRequest(request)}
+                    on:contextmenu={(e) => showContextMenu(e, request)}
+                  >
+                    <td>{request.id}</td>
+                    <td>{request.protocol}</td>
+                    <td>{request.host}</td>
+                    <td class="method {request.method.toLowerCase()}">{request.method}</td>
+                    <td class="path">{request.path}</td>
+                    <td class="status">
+                      {#if request.status}
+                        <span class="status-code status-{Math.floor(request.status / 100)}xx">{request.status}</span>
+                      {:else}
+                        -
+                      {/if}
+                    </td>
+                    <td>{request.responseLength ? request.responseLength : '-'}</td>
+                    <td>{request.responseTime ? request.responseTime : '-'}</td>
+                    <td>{formatDate(request.timestamp)}</td>
+                  </tr>
+                {/each}
+              {/if}
+            </tbody>
+          </table>
+        </div>
+      </Pane>
+      <Pane>
+        <Splitpanes theme="modern-theme">
+          <Pane>
+            <div class="panel request-panel" on:contextmenu={(e) => showPanelContextMenu(e)}>
+              <div class="panel-header">
+                <h3>Request</h3>
+              </div>
+              <div class="panel-content">
+                <div class="line-numbers-wrapper">
+                  {#if selectedRequest}
+                    {@const requestLines = formatFullRequest(selectedRequest).split('\n')}
+                    <div class="line-numbers">
+                      {#each Array(requestLines.length) as _, i}
+                        <div class="line-number">{i + 1}</div>
+                      {/each}
+                    </div>
+                    <pre class="content-block">{formatFullRequest(selectedRequest)}</pre>
+                  {/if}
+                </div>
+              </div>
+          </Pane>
+          <Pane>
+            <div class="panel response-panel">
+              <div class="panel-header">
+                <h3>Response</h3>
+              </div>
+              <div class="panel-content">
+                <div class="line-numbers-wrapper">
+                  {#if selectedRequest}
+                    {@const responseLines = formatFullResponse(selectedRequest).split('\n')}
+                    <div class="line-numbers">
+                      {#each Array(responseLines.length) as _, i}
+                        <div class="line-number">{i + 1}</div>
+                      {/each}
+                    </div>
+                    <pre class="content-block">{formatFullResponse(selectedRequest)}</pre>
+                  {/if}
+                </div>
+              </div>
+            </div>
+          </Pane>
+        </Splitpanes>
+      </Pane>
+    </Splitpanes>
+  </Pane>
 
-<!-- Request Context Menu -->
-{#if contextMenuVisible && contextMenuRequest}
-  <div 
-    class="context-menu"
-    style="top: {contextMenuY}px; left: {contextMenuX}px;"
-  >
-    <div class="context-menu-item" on:click={() => {
-      if (contextMenuRequest) sendToRepeater(contextMenuRequest);
-      closeContextMenu();
-    }}>
-      Send to Repeater
-    </div>
-  </div>
-{/if}
-
-<!-- Request Panel Context Menu -->
-{#if panelContextMenuVisible && selectedRequest}
-  <div 
-    class="context-menu"
-    style="top: {panelContextMenuY}px; left: {panelContextMenuX}px;"
-  >
-    <div class="context-menu-item" on:click={() => {
-      if (selectedRequest) sendToRepeater(selectedRequest);
-      closePanelContextMenu();
-    }}>
-      Send to Repeater
-    </div>
-  </div>
-{/if}
+</Splitpanes>
 
 <style>
+  /* Modern Theme */
+  :global(.splitpanes.modern-theme .splitpanes__pane) {
+    background-color: transparent;
+  }
+ 
+  :global(.splitpanes.modern-theme .splitpanes__splitter) {
+    background-color: #ccc;
+    position: relative;
+  }
+ 
+  :global(.splitpanes.modern-theme .splitpanes__splitter:before) {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0;
+    transition: opacity 0.4s;
+    background-color: #ff5252;
+    opacity: 0;
+    z-index: 1;
+  }
+ 
+  :global(.splitpanes.modern-theme .splitpanes__splitter:hover:before) {
+    opacity: 1;
+  }
+ 
+  :global(.splitpanes.modern-theme .splitpanes__splitter.splitpanes__splitter__active) {
+    z-index: 2; /* Fix an issue of overlap fighting with a near hovered splitter */
+  }
+ 
+  :global(.modern-theme.splitpanes--vertical > .splitpanes__splitter:before) {
+    left: -3px;
+    right: -3px;
+    height: 100%;
+    cursor: col-resize;
+  }
+ 
+  :global(.modern-theme.splitpanes--horizontal > .splitpanes__splitter:before) {
+    top: -3px;
+    bottom: -3px;
+    width: 100%;
+    cursor: row-resize;
+  }
+ 
+  /* No Splitter Theme */
+  :global(.splitpanes.no-splitter .splitpanes__pane) {
+    background-color: transparent;
+  }
+ 
+  :global(.splitpanes.no-splitter .splitpanes__splitter) {
+    background-color: #ccc;
+    position: relative;
+  }
+ 
+  :global(.no-splitter.splitpanes--horizontal > .splitpanes__splitter:before) {
+    width: 0.125rem;
+    pointer-events: none;
+    cursor: none;
+  }
+ 
+  :global(.no-splitter.splitpanes--vertical > .splitpanes__splitter:before) {
+    height: 0.125rem;
+    pointer-events: none;
+    cursor: none;
+  }
   .requests-container {
     display: flex;
     flex-direction: column;
@@ -887,7 +918,10 @@
   .table-container {
     flex: 1;
     overflow-y: auto;
+    overflow-x: auto;
     min-height: 150px;
+    width: 100%;
+    height: 100%;
     background-color: #1a1a1a;
     border-radius: 7px;
     margin-bottom: 10px;

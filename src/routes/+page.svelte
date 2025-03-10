@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
   import { page } from '$app/stores';
-  import RequestsTab from '$lib/components/RequestsTab.svelte';
+  import RequestsTab from '$lib/components/RequestsTab2.svelte';
   import RepeaterTab from '$lib/components/RepeaterTab.svelte';
   import SettingsTab from '$lib/components/SettingsTab.svelte';
   import DecodeEncodeTab from '$lib/components/DecodeEncodeTab.svelte';
