@@ -243,8 +243,6 @@
     </div>
     <div class="sidebar-content" class:hidden={!sidebarVisible}>
       <div class="sidebar-section">
-        <div class="sidebar-item">Sitemap</div>
-        <div class="sidebar-item">Scope</div>
         <div class="sidebar-item">Settings</div>
       </div>
       <div class="sidebar-section">
@@ -253,7 +251,6 @@
         <div class="sidebar-item">Fuzzer</div>
         <div class="sidebar-item">Chat</div>
         <div class="sidebar-item">Decode/Encode</div>
-        <div class="sidebar-item">Request Chain</div>
       </div>
     </div>
   </div>
@@ -267,7 +264,6 @@
       <div class="tab">Fuzzer</div>
       <div class="tab">Chat</div>
       <div class="tab">Decode/Encode</div>
-      <div class="tab">Sitemap</div>
     </div>
     
     <!-- Main Panel - Contains all interfaces -->

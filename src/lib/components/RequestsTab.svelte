@@ -992,12 +992,11 @@
   
   /* Split Panel View */
   .bottom-container {
-    height: 300px;
+    flex: 1;
     background-color: #1a1a1a;
     border-radius: 7px;
     overflow: hidden;
     box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
-    max-width: 1270px;
   }
   
   .split-view {
