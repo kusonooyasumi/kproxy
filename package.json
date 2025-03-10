@@ -36,6 +36,7 @@
 	"dependencies": {
 		"@rollup/rollup-win32-x64-msvc": "^4.34.9",
 		"@tailwindcss/oxide-win32-x64-msvc": "^4.0.11",
+		"deep-chat": "^2.1.1",
 		"electron-store": "^8.1.0",
 		"http-proxy": "^1.18.1",
 		"lightningcss-win32-x64-msvc": "^1.29.2",

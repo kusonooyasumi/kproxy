@@ -5,6 +5,8 @@
   import RepeaterTab from '$lib/components/RepeaterTab.svelte';
   import SettingsTab from '$lib/components/SettingsTab.svelte';
   import DecodeEncodeTab from '$lib/components/DecodeEncodeTab.svelte';
+  import FuzzTab from '$lib/components/FuzzTab.svelte';
+  import ChatTab from '$lib/components/ChatTab.svelte';
   import { projectState } from '$lib/stores/project';
   
   // Check if we should display the startup dialog
@@ -26,6 +28,8 @@
     const repeaterInterface = document.getElementById('repeater-interface') as HTMLElement;
     const decodeEncodeInterface = document.getElementById('decode-encode-interface') as HTMLElement;
     const settingsInterface = document.getElementById('settings-interface') as HTMLElement;
+    const chatInterface = document.getElementById('chat-interface') as HTMLElement;
+    const fuzzerInterface = document.getElementById('fuzzer-interface') as HTMLElement;
     const tabsBar = document.querySelector('.tabs') as HTMLElement;
     
     if (!requestsInterface || !repeaterInterface || !decodeEncodeInterface || !settingsInterface || !tabsBar) return;
@@ -35,6 +39,8 @@
     repeaterInterface.style.display = 'none';
     decodeEncodeInterface.style.display = 'none';
     settingsInterface.style.display = 'none';
+    chatInterface.style.display = 'none';
+    fuzzerInterface.style.display = 'none';
     
     // Show/hide tabs based on the selected interface
     if (interfaceName === 'Settings') {
@@ -50,6 +56,10 @@
       decodeEncodeInterface.style.display = 'block';
     } else if (interfaceName === 'Settings') {
       settingsInterface.style.display = 'block';
+    } else if (interfaceName === 'Fuzzer') {
+      fuzzerInterface.style.display = 'block';
+    } else if (interfaceName === 'Chat') {
+      chatInterface.style.display = 'block';
     } else {
       // Default view (Requests)
       requestsInterface.style.display = 'block';
@@ -276,6 +286,15 @@
       <div id="decode-encode-interface">
         <DecodeEncodeTab />
       </div>
+
+      <!-- Decode/Encode Interface -->
+      <div id="fuzzer-interface">
+        <FuzzTab />
+      </div>
+
+      <div id="chat-interface">
+        <ChatTab />
+      </div>
       
       <!-- Settings Interface -->
       <div id="settings-interface">
@@ -501,7 +520,7 @@
     height: 100%;
   }
   
-  #repeater-interface, #decode-encode-interface, #settings-interface {
+  #repeater-interface, #decode-encode-interface, #settings-interface, #chat-interface, #fuzzer-interface{
     display: none;
     height: 100%;
     width: 100%;
