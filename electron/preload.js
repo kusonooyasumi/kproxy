@@ -1,5 +1,32 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
+
+// Expose protected methods that allow the renderer process to use
+// the ipcRenderer without exposing the entire object
+contextBridge.exposeInMainWorld('electron', {
+  invoke: (channel, data) => {
+    // whitelist channels
+    const validChannels = ['run-ffuf', 'stop-ffuf'];
+    if (validChannels.includes(channel)) {
+      return ipcRenderer.invoke(channel, data);
+    }
+    return Promise.reject(new Error(`Invalid channel: ${channel}`));
+  },
+  on: (channel, callback) => {
+    const validChannels = ['ffuf-output', 'ffuf-complete', 'ffuf-error'];
+    if (validChannels.includes(channel)) {
+      // Deliberately strip event as it includes `sender` 
+      ipcRenderer.on(channel, (event, ...args) => callback(...args));
+    }
+  },
+  removeAllListeners: (channel) => {
+    const validChannels = ['ffuf-output', 'ffuf-complete', 'ffuf-error'];
+    if (validChannels.includes(channel)) {
+      ipcRenderer.removeAllListeners(channel);
+    }
+  }
+});
+
 // Expose protected methods that allow the renderer process to use
 // the ipcRenderer without exposing the entire object
 contextBridge.exposeInMainWorld('electronAPI', {

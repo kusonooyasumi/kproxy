@@ -9,6 +9,7 @@
     let lineNumbers: number[] = [];
     let currentRequestContent: string = '';
     let targetUrl: string = initialUrl;
+    let rateLimit: number = 10;
     let selectedLine: number | null = null;
     let fuzzParameter: string = '';
     let fuzzValues: string[] = [];
@@ -178,6 +179,23 @@ username=ANYTHING&password=anything`;
         </button>
       </div>
     </div>
+    <div class="toolbar">
+        <div class="rate-limit-container">
+            <p>Rate Limit</p><input type="text" placeholder="10" bind:value={rateLimit} />
+          </div>
+          <div class="rate-limit-container">
+            <p>Rate Limit</p><input type="text" placeholder="10" bind:value={targetUrl} />
+          </div>
+        <button on:click={addFuzzMarker}>Add $</button>
+        <button on:click={clearFuzzMarkers}>Clear $</button>
+        <button on:click={autoDetectFuzzPoints}>Auto $</button>
+        <div class="target-url-container">
+          <input type="text" placeholder="Target URL" bind:value={targetUrl} />
+          <button on:click={startFuzzing} disabled={isFuzzing}>
+            {isFuzzing ? 'Fuzzing...' : 'Start Fuzzing'}
+          </button>
+        </div>
+      </div>
     
     <div class="editor-container">
 
@@ -260,6 +278,20 @@ username=ANYTHING&password=anything`;
       border: 1px solid #ccc;
       border-radius: 4px;
       margin-right: 8px;
+    }
+
+    .rate-limit-container {
+    
+      width: 100px;
+    }
+    
+    .rate-limit-container input {
+      flex-grow: 1;
+      padding: 4px 8px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      margin-right: 8px;
+      width: 60px;
     }
     
     .editor-container {

@@ -696,6 +696,35 @@
 
 </Splitpanes>
 
+{#if contextMenuVisible && contextMenuRequest}
+  <div 
+    class="context-menu"
+    style="top: {contextMenuY}px; left: {contextMenuX}px;"
+  >
+    <div class="context-menu-item" on:click={() => {
+      if (contextMenuRequest) sendToRepeater(contextMenuRequest);
+      closeContextMenu();
+    }}>
+      Send to Repeater
+    </div>
+  </div>
+{/if}
+
+<!-- Request Panel Context Menu -->
+{#if panelContextMenuVisible && selectedRequest}
+  <div 
+    class="context-menu"
+    style="top: {panelContextMenuY}px; left: {panelContextMenuX}px;"
+  >
+    <div class="context-menu-item" on:click={() => {
+      if (selectedRequest) sendToRepeater(selectedRequest);
+      closePanelContextMenu();
+    }}>
+      Send to Repeater
+    </div>
+  </div>
+{/if}
+
 <style>
   /* Modern Theme */
   :global(.splitpanes.modern-theme .splitpanes__pane) {
@@ -761,6 +790,7 @@
     pointer-events: none;
     cursor: none;
   }
+
   .requests-container {
     display: flex;
     flex-direction: column;

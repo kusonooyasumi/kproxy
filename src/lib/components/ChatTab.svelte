@@ -22,7 +22,7 @@
       style="border-radius: 7px; border: unset; background-color: transparent; width: 66vw; height: calc(100vh - 150px); padding-top: 10px"
       textInput={{"placeholder":{"text": "Welcome to the demo!"}}}
       history={history}
-      connect={{url: 'https://api.deepseek.com/v1', stream: true}}
+      connect={{url: 'https://api.deepseek.com/chat/completions', headers: {"Content-Type": "application/json","Authorization": "Bearer sk-bd1a6777d6de43819c2cc881b8726dda"}}}
       messageStyles={{"default":{"user": {"bubble": {"backgroundColor": "#ff5252"}}}}}
       >
     </deep-chat>

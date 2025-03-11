@@ -1,11 +1,11 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
   import { page } from '$app/stores';
-  import RequestsTab from '$lib/components/RequestsTab2.svelte';
-  import RepeaterTab from '$lib/components/RepeaterTab.svelte';
+  import RequestsTab from '$lib/components/RequestsTab.svelte';
+  import RepeaterTab from '$lib/components/RepeaterTab2.svelte';
   import SettingsTab from '$lib/components/SettingsTab.svelte';
   import DecodeEncodeTab from '$lib/components/DecodeEncodeTab.svelte';
-  import FuzzTab from '$lib/components/FuzzTab.svelte';
+  import FuzzTab from '$lib/components/FuzzTab2.svelte';
   import ChatTab from '$lib/components/ChatTab.svelte';
   import { projectState } from '$lib/stores/project';
   
