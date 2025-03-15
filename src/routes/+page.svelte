@@ -16,6 +16,9 @@
   // State for sidebar visibility
   let sidebarVisible = true;
   
+  // Track the active sidebar item
+  let activeSidebarItem = 'Requests';
+  
   // Function to toggle sidebar visibility
   function toggleSidebar() {
     sidebarVisible = !sidebarVisible;
@@ -71,6 +74,9 @@
       // Default view (Requests)
 
     }
+    
+    // Update the active sidebar item
+    activeSidebarItem = interfaceName;
   }
   
   // Handle tab and sidebar item clicks
@@ -250,15 +256,15 @@
     </div>
     <div class="sidebar-content" class:hidden={!sidebarVisible}>
       <div class="sidebar-section">
-        <div class="sidebar-item">Settings</div>
+        <div class="sidebar-item" class:active={activeSidebarItem === 'Settings'}>Settings</div>
       </div>
       <div class="sidebar-section">
-        <div class="sidebar-item">Requests</div>
-        <div class="sidebar-item">Repeater</div>
-        <div class="sidebar-item">Fuzzer</div>
-        <div class="sidebar-item">Chat</div>
-        <div class="sidebar-item">Decode/Encode</div>
-        <div class="sidebar-item">Sitemap</div>
+        <div class="sidebar-item" class:active={activeSidebarItem === 'Requests'}>Requests</div>
+        <div class="sidebar-item" class:active={activeSidebarItem === 'Repeater'}>Repeater</div>
+        <div class="sidebar-item" class:active={activeSidebarItem === 'Fuzzer'}>Fuzzer</div>
+        <div class="sidebar-item" class:active={activeSidebarItem === 'Chat'}>Chat</div>
+        <div class="sidebar-item" class:active={activeSidebarItem === 'Decode/Encode'}>Decode/Encode</div>
+        <div class="sidebar-item" class:active={activeSidebarItem === 'Sitemap'}>Sitemap</div>
       </div>
     </div>
   </div>
@@ -416,7 +422,7 @@
     display: flex;
     flex-direction: column;
     transition: width 0.3s ease;
-    border-radius: 7px;
+    border-radius: 4px;
     margin: 10px 10px 0 10px;
     box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
     height: calc(100vh - 20px);
@@ -476,6 +482,11 @@
     background-color: #2a2a2a;
   }
   
+  /* Add styling for active sidebar item with red color */
+  .sidebar-item.active {
+    color: #ff5252;
+  }
+  
   .main-content {
     flex: 1;
     display: flex;
@@ -526,11 +537,11 @@
   }
   
   #requests-interface {
-    height: calc(100vh - 165px);
+    height: calc(100vh - 150px);
   }
 
   #repeater-interface {
-    height: calc(100vh - 156px);
+    height: calc(100vh - 150px);
     display: none;
   }
   
@@ -541,10 +552,10 @@
   }
 
   #sitemap-interface {
-    height: calc(100vh - 153px);
+    height: calc(100vh - 150px);
     display: none;
   }
-  
+
   #decode-encode-interface, #settings-interface, #chat-interface {
     display: none;
     height: 100%;

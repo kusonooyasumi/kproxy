@@ -190,7 +190,6 @@ class ProxyServer extends EventEmitter {
    */
   handleHttpsConnect(req, clientSocket, head) {
     const startTime = Date.now();
-    const reqId = this.requestId++;
     
     // Parse the target hostname and port from request
     const targetUrl = url.parse(`https://${req.url}`);
@@ -199,7 +198,7 @@ class ProxyServer extends EventEmitter {
 
     // Create request details object
     const requestDetails = {
-      id: reqId,
+
       host: hostname,
       method: 'CONNECT',
       path: req.url,

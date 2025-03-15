@@ -7,6 +7,55 @@
   import CodeMirror from "svelte-codemirror-editor";
   import { oneDark } from "@codemirror/theme-one-dark";
   
+  // Add search functionality
+  let searchText = '';
+  let useRegex = false;
+  let statusFilter = '';
+  
+  // Filter requests based on search text, regex option, and status filter
+  $: filteredRequests = requests
+    .filter(request => {
+      // First apply scope filter if enabled
+      if (scopeOnly && !isInScope(request.host)) {
+        return false;
+      }
+      
+      // Then apply status filter if provided
+      if (statusFilter && request.status) {
+        if (!String(request.status).includes(statusFilter)) {
+          return false;
+        }
+      }
+      
+      // Finally apply text search if provided
+      if (searchText) {
+        try {
+          if (useRegex) {
+            // Use regex search
+            const regex = new RegExp(searchText, 'i'); // 'i' for case insensitive
+            return regex.test(request.method) || 
+                  regex.test(request.host) || 
+                  regex.test(request.path) || 
+                  (request.body && regex.test(request.body));
+          } else {
+            // Use simple case-insensitive search
+            const searchLower = searchText.toLowerCase();
+            return request.method.toLowerCase().includes(searchLower) || 
+                  request.host.toLowerCase().includes(searchLower) || 
+                  request.path.toLowerCase().includes(searchLower) || 
+                  (request.body && request.body.toLowerCase().includes(searchLower));
+          }
+        } catch (e) {
+          // Handle invalid regex
+          console.error('Invalid regex:', e);
+          return true; // Show all results if regex is invalid
+        }
+      }
+      
+      return true; // Include by default if no search or filters
+    });
+  
+  
   // Define the ScopeSettings interface
   interface ScopeSettings {
     inScope: string[];
@@ -18,6 +67,19 @@
     inScope: [],
     outOfScope: []
   });
+  
+  // Column configuration for sorting using a writable store
+  const columnsStore = writable([
+    { id: 'id', label: 'ID', type: 'numeric', visible: true },
+    { id: 'protocol', label: 'Protocol', type: 'text', visible: true },
+    { id: 'host', label: 'Host', type: 'text', visible: true },
+    { id: 'method', label: 'Method', type: 'text', visible: true },
+    { id: 'path', label: 'Path', type: 'text', visible: true },
+    { id: 'status', label: 'Status', type: 'numeric', visible: true },
+    { id: 'responseLength', label: 'Response Size', type: 'numeric', visible: true },
+    { id: 'responseTime', label: 'Time (ms)', type: 'numeric', visible: true },
+    { id: 'timestamp', label: 'Timestamp', type: 'date', visible: true }
+  ]);
   
   // Props that can be passed to the component
   export let standalone = false; // Whether the component is running in standalone mode (new window)
@@ -47,6 +109,147 @@
   let showFilterOptions = false;
   let scopeOnly = false;
   let scopeSettings: ScopeSettings = { inScope: [], outOfScope: [] };
+  
+  // Sorting state
+  let sortConfig: {column: string; direction: 'asc' | 'desc' | null}[] = [];
+  
+  // Column visibility context menu
+  let columnMenuVisible = false;
+  let columnMenuX = 0;
+  let columnMenuY = 0;
+  
+  // Show column visibility context menu
+  async function showColumnMenu(event: MouseEvent) {
+    event.preventDefault();
+    event.stopPropagation(); // Add this to prevent immediate closing
+    
+    columnMenuX = event.clientX;
+    columnMenuY = event.clientY;
+    columnMenuVisible = true;
+    
+    await tick();
+    // Use a timeout to avoid the same click that opened the menu from closing it
+    setTimeout(() => {
+      document.addEventListener('click', closeColumnMenu, { once: true });
+    }, 0);
+  }
+  
+  // Close column visibility context menu
+  function closeColumnMenu(event?: MouseEvent) {
+    // Don't close if the click was on a checkbox or within the menu
+    if (event) {
+      const menu = document.querySelector('.column-menu');
+      if (menu && menu.contains(event.target as Node)) {
+        // If clicked inside menu, re-add the event listener for the next outside click
+        document.addEventListener('click', closeColumnMenu, { once: true });
+        return;
+      }
+    }
+    
+    columnMenuVisible = false;
+  }
+
+// Toggle column visibility - modify to prevent menu from closing and keep ID always visible
+function toggleColumnVisibility(columnId: string, event?: Event) {
+  if (event) {
+    event.stopPropagation(); // Prevent the click from closing the menu
+  }
+  
+  // Don't allow toggling off the ID column
+  if (columnId === 'id' && $columnsStore.find(col => col.id === 'id')?.visible) {
+    return; // Exit early if trying to hide the ID column
+  }
+  
+  columnsStore.update(columns => {
+    const columnIndex = columns.findIndex(col => col.id === columnId);
+    if (columnIndex !== -1) {
+      columns[columnIndex].visible = !columns[columnIndex].visible;
+    }
+    return columns;
+  });
+  
+  // Re-add the event listener to close on the next outside click
+  document.addEventListener('click', closeColumnMenu, { once: true });
+}
+
+  
+  // Function to handle header click for sorting
+  function handleHeaderClick(columnId: string) {
+    // Find if this column is already being sorted
+    const columnSortIndex = sortConfig.findIndex(item => item.column === columnId);
+    
+    if (columnSortIndex === -1) {
+      // Column not yet sorted, add it to sortConfig with 'asc' direction
+      sortConfig = [...sortConfig, { column: columnId, direction: 'asc' }];
+    } else {
+      // Column is already sorted, toggle direction
+      const currentDirection = sortConfig[columnSortIndex].direction;
+      if (currentDirection === 'asc') {
+        // Change to descending
+        sortConfig[columnSortIndex].direction = 'desc';
+        sortConfig = [...sortConfig]; // Trigger reactivity
+      } else if (currentDirection === 'desc') {
+        // Remove this column from sort
+        sortConfig = sortConfig.filter(item => item.column !== columnId);
+      }
+    }
+  }
+  
+  // Function to get sort indicator for a column
+  function getSortIndicator(columnId: string): string {
+    const sortItem = sortConfig.find(item => item.column === columnId);
+    if (!sortItem) return '';
+    
+    return sortItem.direction === 'asc' ? '▲' : '▼';
+  }
+  
+  // Function to get sort priority for a column
+  function getSortPriority(columnId: string): number | null {
+    const index = sortConfig.findIndex(item => item.column === columnId);
+    return index === -1 ? null : index + 1;
+  }
+
+  // Sort the requests based on current sort configuration
+  $: sortedRequests = [...filteredRequests].sort((a, b) => {
+    // If no sort config, return original order
+    if (sortConfig.length === 0) return 0;
+    
+    // Apply each sort in order
+    for (const { column, direction } of sortConfig) {
+      const columnConfig = $columnsStore.find(col => col.id === column);
+      if (!columnConfig) continue;
+      
+      let valueA = a[column as keyof CapturedRequest];
+      let valueB = b[column as keyof CapturedRequest];
+      
+      // Handle special case for timestamp
+      if (column === 'timestamp') {
+        valueA = new Date(valueA as string).getTime();
+        valueB = new Date(valueB as string).getTime();
+      }
+      
+      // Handle undefined or null values
+      if (valueA === undefined || valueA === null) valueA = columnConfig.type === 'numeric' ? -Infinity : '';
+      if (valueB === undefined || valueB === null) valueB = columnConfig.type === 'numeric' ? -Infinity : '';
+      
+      // Compare based on type
+      let comparison = 0;
+      if (columnConfig.type === 'numeric') {
+        comparison = Number(valueA) - Number(valueB);
+      } else if (columnConfig.type === 'date') {
+        comparison = Number(valueA) - Number(valueB);
+      } else {
+        comparison = String(valueA).localeCompare(String(valueB));
+      }
+      
+      // Apply direction
+      if (comparison !== 0) {
+        return direction === 'asc' ? comparison : -comparison;
+      }
+    }
+    
+    return 0;
+  });
   
   // Start proxy server
   async function startProxy() {
@@ -127,6 +330,8 @@
       await window.electronAPI.proxy.clearRequests();
       requests = [];
       selectedRequest = null;
+      // Clear sort config when clearing requests
+      sortConfig = [];
     } catch (error) {
       console.error('Failed to clear requests:', error);
     }
@@ -172,12 +377,7 @@
     
     return !isExcluded;
   }
-  
-  // Get filtered requests based on scope settings
-  $: filteredRequests = scopeOnly 
-    ? requests.filter(request => isInScope(request.host))
-    : requests;
-  
+
   // Format date for display
   function formatDate(isoString: string) {
     try {
@@ -503,6 +703,8 @@
           // Clear requests when a new project is created
           requests = [];
           selectedRequest = null;
+          // Reset sorting
+          sortConfig = [];
         } else if (data.action === 'open') {
           // No need to update requests here as the main.js now sends all proxied requests
           // via proxy-request and proxy-response events when a project is opened
@@ -531,20 +733,43 @@
     
     <div class="control-buttons">
       <button class="control-button" on:click={clearRequests}>Clear Requests</button>
-    <div class="filter-dropdown">
-        <button class="control-button" class:active={scopeOnly} on:click={toggleFilterOptions}>
-          Filter {scopeOnly ? '(Active)' : ''}
+      <div class="filter-dropdown">
+        <button class="control-button" class:active={scopeOnly || searchText || statusFilter} on:click={toggleFilterOptions}>
+          Filter {(scopeOnly || searchText || statusFilter) ? '(Active)' : ''}
           <span class="dropdown-arrow">▼</span>
         </button>
         
         {#if showFilterOptions}
           <div class="dropdown-content">
+            <div class="search-filter">
+              <input 
+                type="text" 
+                placeholder="Search requests..." 
+                bind:value={searchText} 
+                class="search-input"
+              />
+              <label class="regex-option">
+                <input type="checkbox" bind:checked={useRegex}>
+                <span>Use regex</span>
+              </label>
+            </div>
+            
+            <div class="status-filter">
+              <input 
+                type="text" 
+                placeholder="Filter by status code" 
+                bind:value={statusFilter} 
+                class="status-input"
+              />
+            </div>
+            
             <label class="filter-option">
               <input type="checkbox" bind:checked={scopeOnly}>
               <span>In scope items only</span>
             </label>
-            {#if scopeOnly && filteredRequests.length === 0 && requests.length > 0}
-              <div class="filter-warning">No requests match the current scope</div>
+            
+            {#if filteredRequests.length === 0 && requests.length > 0}
+              <div class="filter-warning">No requests match the current filters</div>
             {/if}
           </div>
         {/if}
@@ -603,21 +828,30 @@
           <table class="request-table">
             <thead>
               <tr>
-                <th>ID</th>
-                <th>Protocol</th>
-                <th>Host</th>
-                <th>Method</th>
-                <th>Path</th>
-                <th>Status</th>
-                <th>Response Size</th>
-                <th>Time (ms)</th>
-                <th>Timestamp</th>
+                {#each $columnsStore as column}
+                  {#if column.visible}
+                    <th 
+                      on:click={() => handleHeaderClick(column.id)}
+                      on:contextmenu={showColumnMenu}
+                      class:sorted={getSortIndicator(column.id) !== ''}
+                      title={getSortIndicator(column.id) ? `Sorted ${getSortIndicator(column.id) === '▲' ? 'ascending' : 'descending'}` : 'Click to sort, right-click to show/hide columns'}
+                    >
+                      {column.label}
+                      {#if getSortIndicator(column.id)}
+                        <span class="sort-indicator">{getSortIndicator(column.id)}</span>
+                        {#if sortConfig.length > 1}
+                          <span class="sort-priority">{getSortPriority(column.id)}</span>
+                        {/if}
+                      {/if}
+                    </th>
+                  {/if}
+                {/each}
               </tr>
             </thead>
             <tbody>
               {#if requests.length === 0}
                 <tr>
-                  <td colspan="9" class="no-requests">
+                  <td colspan={$columnsStore.filter(col => col.visible).length} class="no-requests">
                     {#if proxyStatus.isRunning}
                       No requests captured yet. Configure your browser to use proxy at localhost:{proxyStatus.port}
                     {:else}
@@ -626,28 +860,46 @@
                   </td>
                 </tr>
               {:else}
-                {#each filteredRequests as request (request.id)}
+                {#each sortedRequests as request (request.id)}
                   <tr 
                     class:selected={selectedRequest && selectedRequest.id === request.id}
                     class:error={request.error}
                     on:click={() => selectRequest(request)}
                     on:contextmenu={(e) => showContextMenu(e, request)}
                   >
-                    <td>{request.id}</td>
-                    <td>{request.protocol}</td>
-                    <td>{request.host}</td>
-                    <td class="method {request.method.toLowerCase()}">{request.method}</td>
-                    <td class="path">{request.path}</td>
-                    <td class="status">
-                      {#if request.status}
-                        <span class="status-code status-{Math.floor(request.status / 100)}xx">{request.status}</span>
-                      {:else}
-                        -
-                      {/if}
-                    </td>
-                    <td>{request.responseLength ? request.responseLength : '-'}</td>
-                    <td>{request.responseTime ? request.responseTime : '-'}</td>
-                    <td>{formatDate(request.timestamp)}</td>
+                    {#if $columnsStore.find(col => col.id === 'id')?.visible}
+                      <td>{request.id}</td>
+                    {/if}
+                    {#if $columnsStore.find(col => col.id === 'protocol')?.visible}
+                      <td>{request.protocol}</td>
+                    {/if}
+                    {#if $columnsStore.find(col => col.id === 'host')?.visible}
+                      <td>{request.host}</td>
+                    {/if}
+                    {#if $columnsStore.find(col => col.id === 'method')?.visible}
+                      <td class="method {request.method.toLowerCase()}">{request.method}</td>
+                    {/if}
+                    {#if $columnsStore.find(col => col.id === 'path')?.visible}
+                      <td class="path">{request.path}</td>
+                    {/if}
+                    {#if $columnsStore.find(col => col.id === 'status')?.visible}
+                      <td class="status">
+                        {#if request.status}
+                          <span class="status-code status-{Math.floor(request.status / 100)}xx">{request.status}</span>
+                        {:else}
+                          -
+                        {/if}
+                      </td>
+                    {/if}
+                    {#if $columnsStore.find(col => col.id === 'responseLength')?.visible}
+                      <td>{request.responseLength ? request.responseLength : '-'}</td>
+                    {/if}
+                    {#if $columnsStore.find(col => col.id === 'responseTime')?.visible}
+                      <td>{request.responseTime ? request.responseTime : '-'}</td>
+                    {/if}
+                    {#if $columnsStore.find(col => col.id === 'timestamp')?.visible}
+                      <td>{formatDate(request.timestamp)}</td>
+                    {/if}
                   </tr>
                 {/each}
               {/if}
@@ -722,9 +974,30 @@
   </div>
 {/if}
 
-<style>
+<!-- Column Visibility Context Menu -->
+{#if columnMenuVisible}
+  <div 
+    class="context-menu column-menu"
+    style="top: {columnMenuY}px; left: {columnMenuX}px;"
+    on:click|stopPropagation
+  >
+    <div class="context-menu-header">Show/Hide Columns</div>
+    {#each $columnsStore as column}
+      <label class="context-menu-checkbox">
+        <input 
+          type="checkbox" 
+          checked={column.visible} 
+          on:change={(e) => toggleColumnVisibility(column.id, e)}
+          on:click|stopPropagation
+        />
+        <span>{column.label}</span>
+      </label>
+    {/each}
+  </div>
+{/if}
 
-.main-panel {
+<style>
+  .main-panel {
     display: flex;
     flex-direction: column;
     flex: 1;
@@ -909,8 +1182,6 @@
     margin-left: 5px;
   }
   
-
-
   .dropdown-content  {
     margin-top: 5px;
     position: fixed;
@@ -998,6 +1269,38 @@
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    cursor: pointer;
+    user-select: none;
+    transition: background-color 0.2s;
+    padding: 5px 10px;
+  }
+  
+  .request-table th:hover {
+    background-color: #2a2a2a;
+  }
+  
+  .request-table th.sorted {
+    background-color: #2a2a2a;
+    font-weight: bold;
+  }
+  
+  .sort-indicator {
+    margin-left: 5px;
+    color: #ff5252;
+    font-size: 10px;
+  }
+  
+  .sort-priority {
+    display: inline-block;
+    margin-left: 3px;
+    background-color: #ff5252;
+    color: white;
+    font-size: 9px;
+    width: 14px;
+    height: 14px;
+    line-height: 14px;
+    text-align: center;
+    border-radius: 50%;
   }
   
   .request-table td {
@@ -1335,25 +1638,71 @@
     background-color: #444;
   }
   
+  /* Column Menu Styles */
+  .column-menu {
+    padding: 8px;
+  }
+  
+  .context-menu-header {
+    font-weight: bold;
+    padding: 4px 8px 8px 8px;
+    border-bottom: 1px solid #444;
+    margin-bottom: 8px;
+    color: #ddd;
+  }
+  
+  .context-menu-checkbox {
+    display: flex;
+    align-items: center;
+    padding: 4px 8px;
+    cursor: pointer;
+    color: #ddd;
+    gap: 8px;
+  }
+  
+  .context-menu-checkbox:hover {
+    background-color: #444;
+    border-radius: 4px;
+  }
+  
+  .context-menu-checkbox input[type="checkbox"] {
+    margin: 0;
+  }
+  
   @keyframes fadeIn {
     from { opacity: 0; transform: scale(0.95); }
     to { opacity: 1; transform: scale(1); }
   }
-  ::-webkit-scrollbar {
-    width: 8px;
-    height: 8px;
-  }
 
-  ::-webkit-scrollbar-track {
-    background: #1e1e1e;
-  }
 
-  ::-webkit-scrollbar-thumb {
-    background: #444;
+    /* Search filter styles */
+    .search-filter, .status-filter {
+    margin-bottom: 8px;
+    padding: 5px;
+  }
+  
+  .search-input, .status-input {
+    width: 100%;
+    padding: 6px 8px;
+    background-color: #333;
+    border: 1px solid #444;
     border-radius: 4px;
+    color: #fff;
+    margin-bottom: 4px;
+  }
+  
+  .regex-option {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 4px;
+    font-size: 12px;
+    color: #ddd;
+  }
+  
+  .dropdown-content {
+    width: 250px;
+    padding: 10px;
   }
 
-  ::-webkit-scrollbar-thumb:hover {
-    background: #555;
-  }
 </style>
