@@ -17,8 +17,17 @@ class ProxyServer extends EventEmitter {
     this.requestId = 1;
     this.certificatePath = null;
     this.certificateCache = new Map();
+    
+    // Add global unhandled error handling
+    process.on('uncaughtException', (err) => {
+      console.error('Uncaught Exception:', err);
+      
+      // Don't crash the application
+    });
   }
 
+
+  
   /**
    * Initialize the proxy server
    */

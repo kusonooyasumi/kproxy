@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import RequestsTab from '$lib/components/RequestsTab.svelte';
+  import FuzzTab from '$lib/components/FuzzTab.svelte';
   
   // Check if running in Electron
   const isElectron = typeof window !== 'undefined' && window.electronAPI !== undefined;
@@ -9,20 +9,14 @@
     console.log('Standalone Requests page mounted');
     
     // Set the page title
-    document.title = 'KProxy - Requests';
+    document.title = 'KProxy - Fuzzer';
     
-    // Ensure any parent page elements are removed
-    // This is a more direct approach than trying to hide them after rendering
-    document.querySelectorAll('.app-container, .sidebar, .tabs').forEach(elem => {
-      if (elem.parentNode) {
-        elem.parentNode.removeChild(elem);
-      }
-    });
+
   });
 </script>
 
 <div class="standalone-container">
-  <RequestsTab standalone={true} />
+  <FuzzTab standalone={true} />
 </div>
 
 <style>

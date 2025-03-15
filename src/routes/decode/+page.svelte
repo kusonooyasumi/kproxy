@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import RequestsTab from '$lib/components/RequestsTab.svelte';
+  import DecodeEncodeTab from '$lib/components/DecodeEncodeTab.svelte';
   
   // Check if running in Electron
   const isElectron = typeof window !== 'undefined' && window.electronAPI !== undefined;
@@ -9,20 +9,14 @@
     console.log('Standalone Requests page mounted');
     
     // Set the page title
-    document.title = 'KProxy - Requests';
+    document.title = 'KProxy - Decode';
     
-    // Ensure any parent page elements are removed
-    // This is a more direct approach than trying to hide them after rendering
-    document.querySelectorAll('.app-container, .sidebar, .tabs').forEach(elem => {
-      if (elem.parentNode) {
-        elem.parentNode.removeChild(elem);
-      }
-    });
+
   });
 </script>
 
 <div class="standalone-container">
-  <RequestsTab standalone={true} />
+  <DecodeEncodeTab standalone={true} />
 </div>
 
 <style>
@@ -38,5 +32,23 @@
     height: 100%;
     width: 100%;
     padding: 10px;
+  }
+
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: #1e1e1e;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: #444;
+    border-radius: 4px;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: #555;
   }
 </style>

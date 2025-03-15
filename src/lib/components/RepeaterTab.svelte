@@ -1,6 +1,12 @@
 <script lang="ts">
   import { onMount, onDestroy, createEventDispatcher } from 'svelte';
-  
+  import { Pane, Splitpanes } from 'svelte-splitpanes';
+  import CodeMirror from "svelte-codemirror-editor";
+  import { oneDark } from "@codemirror/theme-one-dark";
+
+  let value = "";
+
+
   // Props that can be passed to the component
   export let standalone = false; // Whether the component is running in standalone mode (new window)
   
@@ -18,6 +24,52 @@
   let isLoading = false;
   let responseContent = '';
   let urlInput = 'https://target.com'; // Default URL
+  
+    // Props
+    export let initialValue: string = '';
+  export let placeholder: string = '';
+  export let height: string = '200px';
+  export let minWidth: string = '500px';
+  
+  let textarea: HTMLTextAreaElement;
+  let lineNumbers: HTMLDivElement;
+  let lines: number = 1;
+  
+  // Update line numbers when content changes
+  function updateLineNumbers(value: string) {
+    lines = value.split('\n').length;
+  }
+  
+  // Handle keydown events for tab support
+  function handleKeydown(event: KeyboardEvent) {
+    if (event.key === 'Tab') {
+      event.preventDefault();
+      
+      const start = textarea.selectionStart;
+      const end = textarea.selectionEnd;
+      
+      textarea.value = textarea.value.substring(0, start) + '\t' + textarea.value.substring(end);
+      
+      // Set cursor position after the inserted tab
+      textarea.selectionStart = textarea.selectionEnd = start + 1;
+      
+      // Make sure to update line numbers
+      updateLineNumbers(textarea.value);
+    }
+  }
+  
+  // Handle input events to update line numbers
+  function handleInput() {
+    updateLineNumbers(textarea.value);
+  }
+  
+  // Initialize with any initial value
+  onMount(() => {
+    if (initialValue) {
+      textarea.value = initialValue;
+      updateLineNumbers(initialValue);
+    }
+  });
   
   // Update URL input when selected request changes
   $: if (selectedRequest) {
@@ -299,126 +351,170 @@ ${request.responseBody}`;
   });
 </script>
 
-<!-- Repeater Tab Content -->
-<div class="repeater-container">
-  <div class="repeater-header">
-    <input 
-      type="text" 
-      class="url-input" 
-      placeholder="https://target.com" 
-      bind:value={urlInput}
-      on:blur={handleUrlChange}
-      on:keydown={(e) => e.key === 'Enter' && handleUrlChange()}
-    >
-    
-    <div class="header-buttons">
-      <button 
-        class="send-button" 
-        title="Previous request" 
-        on:click={previousRequest} 
-        disabled={requests.length === 0 || selectedIndex === 0}
-      >◀</button>
-      <button 
-        class="send-button" 
-        title="Next request" 
-        on:click={nextRequest}
-        disabled={requests.length === 0 || selectedIndex === requests.length - 1}
-      >▶</button>
-      <button 
-        class="send-button action-button" 
-        on:click={sendRequest}
-        disabled={!selectedRequest}
-      >Send</button>
-    </div>
-  </div>
+<div class="repeater-header">
+  <input 
+    type="text" 
+    class="url-input" 
+    placeholder="https://target.com" 
+    bind:value={urlInput}
+    on:blur={handleUrlChange}
+    on:keydown={(e) => e.key === 'Enter' && handleUrlChange()}
+  >
   
-  <div class="repeater-body">
-    <!-- Left panel (Request list) -->
-    <div class="request-list-panel">
-      <div class="panel-header">
-        Requests ({requests.length})
-      </div>
-      <div class="search-container">
-        <input 
-          type="text" 
-          class="search-input" 
-          placeholder="Search requests" 
-          on:input={(e) => searchRequests(e.currentTarget.value)}
-        >
-      </div>
-      <div class="request-list">
-        {#if requests.length === 0}
-          <div class="empty-message">No requests yet. Send requests from the Requests tab.</div>
-        {:else}
-          {#each requests as request, index}
-            <div 
-              class="request-item" 
-              class:selected={selectedIndex === index}
-              on:click={() => {
-                selectedIndex = index;
-                selectedRequest = request;
-              }}
-            >
-              <div class="request-item-number">Request #{index + 1}</div>
+  <div class="header-buttons">
+    <button 
+      class="send-button action-button" 
+      on:click={sendRequest}
+      disabled={!selectedRequest}
+    >Send</button>
+  </div>
+</div>
+<div class="repeater-body">
+<Splitpanes theme="no-splitter" horizontal style="" dblClickSplitter={false}>
+
+  <Pane>
+    <Splitpanes theme="modern-theme">
+      <Pane>
+        
+          <!-- Left panel (Request list) -->
+          <div class="request-list-panel">
+            <div class="panel-header">
+              Requests ({requests.length})
             </div>
-          {/each}
-        {/if}
-      </div>
-    </div>
-    
-    <!-- Right panel (Request/Response) -->
-    <div class="request-response-panel">
-      <div class="panel-tabs">
+            <div class="search-container">
+              <input 
+                type="text" 
+                class="search-input" 
+                placeholder="Search requests" 
+                on:input={(e) => searchRequests(e.currentTarget.value)}
+              >
+            </div>
+            <div class="request-list">
+              {#if requests.length === 0}
+                <div class="empty-message">No requests yet. Send requests from the Requests tab.</div>
+              {:else}
+                {#each requests as request, index}
+                  <div 
+                    class="request-item" 
+                    class:selected={selectedIndex === index}
+                    on:click={() => {
+                      selectedIndex = index;
+                      selectedRequest = request;
+                    }}
+                  >
+                    <div class="request-item-number">Request #{index + 1}</div>
+                  </div>
+                {/each}
+              {/if}
+            </div>
+          </div>
+        
+      </Pane>
+      <Pane>
         <div class="panel-tab">
           <span>Request</span>
           <button class="send-button icon-button" title="Request issues">⚠</button>
         </div>
-        <div class="panel-tab">
+        <div class="request-content">
+        <CodeMirror theme={oneDark} bind:value={requestContent} lineWrapping={true}/>
+      </div>
+      </Pane>
+      <Pane>
+        <div class="response-panel-tab">
           <span>Response</span>
-          <div>
+          <div class="panel-buttons">
             <button class="send-button icon-button" title="Response issues">⚠</button>
             <button class="send-button icon-button" title="Fullscreen">□</button>
           </div>
         </div>
-      </div>
-      <div class="panel-content">
-        {#if selectedRequest}
-          <div class="request-content">
-            <textarea 
-              class="request-editor" 
-              placeholder="Request details will be shown here"
-              bind:value={requestContent}
-            ></textarea>
-          </div>
-          <div class="response-content">
-            {#if isLoading}
-              <div class="loading-indicator">
-                <div class="spinner"></div>
-                <div>Sending request...</div>
-              </div>
-            {:else}
-              <textarea 
-                class="response-editor" 
-                placeholder="Response will be shown here after sending the request"
-                readonly
-                value={responseContent}
-              ></textarea>
-            {/if}
-          </div>
-        {:else}
-          <div class="request-content">
-            <div class="empty-panel-message">Select a request from the list to view details</div>
-          </div>
-          <div class="response-content">
-            <div class="empty-panel-message">Select a request from the list to view details</div>
-          </div>
-        {/if}
-      </div>
-    </div>
-  </div>
-</div>
+        <div class="response-content">
+          {#if isLoading}
+            <div class="loading-indicator">
+              <div class="spinner"></div>
+              <div>Sending request...</div>
+            </div>
+          {:else}
+          <CodeMirror theme={oneDark} bind:value={responseContent} editable={false} lineWrapping={true}/>
+          {/if}
+        </div>
+      </Pane>
+    </Splitpanes>
+  </Pane>
 
+</Splitpanes>
+</div>
 <style>
+
+.panel-buttons {
+    display: flex; /* Makes children (buttons) appear side by side */
+    gap: 10px; /* Optional: Adds some space between the buttons */
+  }
+
+  /* Modern Theme */
+  :global(.splitpanes.modern-theme .splitpanes__pane) {
+    background-color: transparent;
+  }
+ 
+  :global(.splitpanes.modern-theme .splitpanes__splitter) {
+    background-color: #ccc;
+    position: relative;
+  }
+ 
+  :global(.splitpanes.modern-theme .splitpanes__splitter:before) {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0;
+    transition: opacity 0.4s;
+    background-color: #ff5252;
+    opacity: 0;
+    z-index: 1;
+  }
+ 
+  :global(.splitpanes.modern-theme .splitpanes__splitter:hover:before) {
+    opacity: 1;
+  }
+ 
+  :global(.splitpanes.modern-theme .splitpanes__splitter.splitpanes__splitter__active) {
+    z-index: 2; /* Fix an issue of overlap fighting with a near hovered splitter */
+  }
+ 
+  :global(.modern-theme.splitpanes--vertical > .splitpanes__splitter:before) {
+    left: -3px;
+    right: -3px;
+    height: 100%;
+    cursor: col-resize;
+  }
+ 
+  :global(.modern-theme.splitpanes--horizontal > .splitpanes__splitter:before) {
+    top: -3px;
+    bottom: -3px;
+    width: 100%;
+    cursor: row-resize;
+  }
+ 
+  /* No Splitter Theme */
+  :global(.splitpanes.no-splitter .splitpanes__pane) {
+    background-color: transparent;
+  }
+ 
+  :global(.splitpanes.no-splitter .splitpanes__splitter) {
+    background-color: transparent;
+    position: relative;
+  }
+ 
+  :global(.no-splitter.splitpanes--horizontal > .splitpanes__splitter:before) {
+    width: 0.125rem;
+    pointer-events: none;
+    cursor: none;
+  }
+ 
+  :global(.no-splitter.splitpanes--vertical > .splitpanes__splitter:before) {
+    height: 0.125rem;
+    pointer-events: none;
+    cursor: none;
+  }
+
   .repeater-container {
     display: flex;
     flex-direction: column;
@@ -428,34 +524,36 @@ ${request.responseBody}`;
   }
   
   .repeater-header {
-    padding: 12px;
+    padding: 8px;
     display: flex;
     align-items: center;
-    
-    background-color: #1a1a1a;
-    border-radius: 7px;
+    background-color: transparent;
+    border-radius: 4px;
     margin-bottom: 10px;
     margin-left: auto;
+    background-color: #1a1a1a;
     box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
-    width: 69%;
+    border: 1px solid #ddd;
   }
   
   .url-input {
-    width: 300px;
-    padding: 10px;
+    width: 500px;
+    padding: 5px 10px;
     background-color: #2a2a2a;
     border: none;
     color: #fff;
-    border-radius: 8px;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+
+    border-radius: 4px;
   }
   
   .search-input {
     flex: 1;
-    padding: 10px;
+    padding: 5px;
     background-color: #2a2a2a;
     border: none;
     color: #fff;
-    border-radius: 8px;
+    border-radius: 4px;
   }
 
   .header-buttons {
@@ -474,8 +572,10 @@ ${request.responseBody}`;
     display: flex;
     align-items: center;
     justify-content: center;
-    border-radius: 8px;
+    border-radius: 4px;
     transition: background-color 0.2s ease;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+    border: 1px solid #ddd;
   }
   
   .send-button:hover {
@@ -485,12 +585,11 @@ ${request.responseBody}`;
   .action-button {
     width: auto;
     padding: 0 15px;
-    background-color: #ff5252;
     color: white;
   }
   
   .action-button:hover {
-    background-color: #ff3838;
+    background-color: #ff5252;
   }
   
   .icon-button {
@@ -499,16 +598,19 @@ ${request.responseBody}`;
   
   .repeater-body {
     display: flex;
-    height: calc(100% - 60px);
+    height: 100%;
     gap: 10px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
   }
   
   .request-list-panel {
-    width: 30%;
+    width: 100%;
     display: flex;
+    height: 100%;
     flex-direction: column;
     background-color: #1a1a1a;
-    border-radius: 7px;
+    border-radius: 4px;
     box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
     overflow: hidden;
   }
@@ -518,6 +620,7 @@ ${request.responseBody}`;
     background-color: #1a1a1a;
     border-bottom: 1px solid #333;
     font-weight: bold;
+    height: 45px;
   }
   
   .search-container {
@@ -584,22 +687,29 @@ ${request.responseBody}`;
     border-bottom: 1px solid #333;
   }
   
-  .panel-tab {
-    padding: 12px 15px;
+  .response-panel-tab {
+    padding: 6px 15px;
     flex: 1;
     display: flex;
     justify-content: space-between;
     transition: background-color 0.2s ease;
+    height: 45px;
+    background-color: #1a1a1a;
+    border-radius: 0px 7px 0px 0px;
+    border-bottom: 1px solid #333;
   }
-  
-  .panel-tab:first-child {
-    border-right: 1px solid #333;
+
+  .panel-tab {
+    padding: 6px 15px;
+    flex: 1;
+    display: flex;
+    justify-content: space-between;
+    transition: background-color 0.2s ease;
+    height: 45px;
+    background-color: #1a1a1a;
+    border-bottom: 1px solid #333;
   }
-  
-  .panel-tab:hover {
-    background-color: #2a2a2a;
-  }
-  
+
   .panel-content {
     flex: 1;
     display: flex;
@@ -607,19 +717,24 @@ ${request.responseBody}`;
   
   .request-content {
     flex: 1;
+    height: 100%;
+    width: 100%;
+    min-width: 25%;
     padding: 0;
     border-right: 1px solid #333;
     overflow: auto;
     background-color: #1a1a1a;
-    display: flex;
+
   }
   
   .response-content {
     flex: 1;
+    height: 100%;
+    width: 100%;
     padding: 0;
     overflow: auto;
     background-color: #1a1a1a;
-    display: flex;
+
   }
   
   .request-editor,
@@ -660,4 +775,48 @@ ${request.responseBody}`;
   @keyframes spin {
     to { transform: rotate(360deg); }
   }
+
+  .editor {
+        display: inline-flex;
+        gap: 10px;
+        font-family: monospace;
+        line-height: 21px;
+        background: #282a3a;
+        border-radius: 2px;
+        padding: 20px 10px;
+        height: 200px;
+        overflow-y: auto;
+      }
+
+      .line-numbers {
+        width: 20px;
+        text-align: right;
+        
+      }
+
+      .line-numbers span {
+        counter-increment:  linenumber;
+      }
+
+      .line-numbers span::before {
+        content: counter(linenumber);
+        display: block;
+        color: #506882;
+      }
+
+      textarea {
+        
+        min-height: 1000px;
+        line-height: 21px;
+        overflow-y: hidden;
+        padding: 0;
+        border: 0;
+        background: #282a3a;
+        color: #FFF;
+        min-width: calc(100% - 10px);
+        outline: none;
+        
+      }
+
+
 </style>

@@ -256,6 +256,18 @@ const createTabWindow = async (tabName) => {
     } else if (tabName === 'Repeater') {
       // For Repeater tab, use the dedicated route
       url = 'http://localhost:5173/repeater';
+    } else if (tabName === 'Fuzzer') {
+      // For Repeater tab, use the dedicated route
+      url = 'http://localhost:5173/fuzzer';
+    } else if (tabName === 'Chat') {
+      // For Repeater tab, use the dedicated route
+      url = 'http://localhost:5173/chat';
+    } else if (tabName === 'Decode/Encode') {
+      // For Repeater tab, use the dedicated route
+      url = 'http://localhost:5173/decode';
+    } else if (tabName === 'Sitemap') {
+      // For Repeater tab, use the dedicated route
+      url = 'http://localhost:5173/sitemap';
     } else {
       // For other tabs, use the main route
       url = 'http://localhost:5173';

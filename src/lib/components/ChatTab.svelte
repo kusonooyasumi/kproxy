@@ -1,40 +1,533 @@
-<script>
-	import { onMount } from 'svelte';
+<script lang="ts">
+  import { onMount } from 'svelte';
+  import { fade } from 'svelte/transition';
+  import { marked } from 'marked';
+  import type { MarkedOptions } from 'marked';
+  import hljs from 'highlight.js';
+  import 'highlight.js/styles/atom-one-dark.css';
+  import { browser } from '$app/environment';
   
-  // Make sure to use onMount and render deep-chat on load
-	onMount(async () => {
-		await import("deep-chat");
-    isLoaded = true;
-	});
+  // Import our stores
+  import { apiKeys, currentProvider, type Provider } from '$lib/stores/settings';
+  import { messages, addMessage, clearMessages, type Message } from '$lib/stores/chat';
 
-  let isLoaded = false;
-	const history = [
-		{ role: "user", text: "Hey, how are you today?" },
-		{ role: "ai", text: "I am doing very well!" }
-	];
+  // Local state
+  let input = '';
+  let isLoading = false;
+  let chatContainer: HTMLElement;
+  let isSettingsOpen = false;
+
+  // Define a proper type for the highlight function
+  type HighlightFunction = (code: string, lang: string) => string;
+
+  // Create properly typed options
+  const markedOptions: MarkedOptions & { highlight?: HighlightFunction } = {
+    highlight: function(code: string, lang: string) {
+      if (lang && hljs.getLanguage(lang)) {
+        return hljs.highlight(code, { language: lang }).value;
+      }
+      return hljs.highlightAuto(code).value;
+    },
+    breaks: true
+  };
+
+  // Set the options
+  marked.setOptions(markedOptions);
+
+  // Submit message to the selected AI provider
+  async function handleSubmit(): Promise<void> {
+    if (!input.trim() || isLoading) return;
+    
+    // Check if API key is set
+    if (!$apiKeys[$currentProvider]) {
+      addMessage({
+        role: 'system',
+        content: `Error: No API key set for ${$currentProvider}. Please configure your API key in settings.`,
+        timestamp: new Date()
+      });
+      return;
+    }
+
+    const userMessage: Message = {
+      role: 'user',
+      content: input,
+      timestamp: new Date()
+    };
+    
+    addMessage(userMessage);
+    const userInput = input;
+    input = '';
+    isLoading = true;
+    
+    try {
+      // Send request to backend
+      const response = await fetch('/api/chat', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          message: userInput,
+          provider: $currentProvider,
+          apiKey: $apiKeys[$currentProvider],
+          history: $messages.slice(0, -1) // Send previous messages as context
+        })
+      });
+      
+      if (!response.ok) {
+        throw new Error(`API request failed with status ${response.status}`);
+      }
+      
+      const data = await response.json();
+      
+      const assistantMessage: Message = {
+        role: 'assistant',
+        content: data.response,
+        timestamp: new Date()
+      };
+      
+      addMessage(assistantMessage);
+      
+      // Scroll to bottom
+      setTimeout(() => {
+        if (chatContainer) {
+          chatContainer.scrollTop = chatContainer.scrollHeight;
+        }
+      }, 100);
+      
+    } catch (error: unknown) {
+      console.error('Error calling AI API:', error);
+      addMessage({
+        role: 'system',
+        content: `Error: Failed to get response from ${$currentProvider}. ${error instanceof Error ? error.message : 'Unknown error'}`,
+        timestamp: new Date()
+      });
+    } finally {
+      isLoading = false;
+    }
+  }
+
+  // Toggle settings panel
+  function toggleSettings(): void {
+    isSettingsOpen = !isSettingsOpen;
+  }
+
+  // Update API key
+  function updateApiKey(provider: Provider, value: string): void {
+    apiKeys.update(keys => ({
+      ...keys,
+      [provider]: value
+    }));
+  }
+
+  // Change the current provider
+  function changeProvider(provider: Provider): void {
+    currentProvider.set(provider);
+  }
+
+  // Handle key press events
+  function handleKeydown(event: KeyboardEvent): void {
+    if (event.key === 'Enter' && !event.shiftKey) {
+      event.preventDefault();
+      handleSubmit();
+    }
+  }
+
+  // Format timestamp
+  function formatTime(date: Date): string {
+    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  }
+
+  // Process message content with markdown
+  function processContent(content: string): string {
+    return marked(content) as string;
+  }
+
+  // Handle input change for API keys
+  function handleInputChange(event: Event, provider: Provider): void {
+    const target = event.target as HTMLInputElement;
+    if (target) {
+      updateApiKey(provider, target.value);
+    }
+  }
+
+  // Auto-scroll when messages change
+  $: if ($messages && chatContainer && browser) {
+    setTimeout(() => {
+      chatContainer.scrollTop = chatContainer.scrollHeight;
+    }, 0);
+  }
 </script>
 
-<main>
-  {#if isLoaded}
-    <!-- demo/textInput are examples of passing an object directly into a property -->
-    <!-- history is an example of passing an object from script into a property -->
-    <deep-chat
-      style="border-radius: 7px; border: unset; background-color: transparent; width: 66vw; height: calc(100vh - 150px); padding-top: 10px"
-      textInput={{"placeholder":{"text": "Welcome to the demo!"}}}
-      history={history}
-      connect={{url: 'https://api.deepseek.com/chat/completions', headers: {"Content-Type": "application/json","Authorization": "Bearer sk-bd1a6777d6de43819c2cc881b8726dda"}}}
-      messageStyles={{"default":{"user": {"bubble": {"backgroundColor": "#ff5252"}}}}}
-      >
-    </deep-chat>
-
+<div class="terminal">
+  <div class="terminal-header">
+    <div class="terminal-title">Chatting with {$currentProvider.toUpperCase()}</div>
+    <div class="terminal-controls">
+      <button class="terminal-btn" on:click={toggleSettings}>⚙️</button>
+      <button class="terminal-btn" on:click={clearMessages}>🗑️</button>
+    </div>
+  </div>
+  
+  {#if isSettingsOpen}
+    <div class="settings-panel" transition:fade={{ duration: 150 }}>
+      <h3>API Settings</h3>
+      <div class="provider-selector">
+        {#each Object.keys($apiKeys) as provider}
+          <button 
+            class="provider-btn {$currentProvider === provider ? 'active' : ''}" 
+            on:click={() => changeProvider(provider as Provider)}
+          >
+            {provider}
+          </button>
+        {/each}
+      </div>
+      
+      <div class="api-key-inputs">
+        {#each Object.entries($apiKeys) as [provider, key]}
+          <div class="api-key-input">
+            <label for="{provider}-key">{provider} API Key:</label>
+            <input 
+              type="password" 
+              id="{provider}-key" 
+              value={key} 
+              on:change={(e) => handleInputChange(e, provider as Provider)}
+              placeholder="Enter your API key"
+            />
+          </div>
+        {/each}
+      </div>
+    </div>
   {/if}
-</main>
+  
+  <div class="chat-container" >
+    {#if $messages.length === 0}
+      <div class="welcome-message">
+        <p>Welcome to the AI Chat Terminal!</p>
+        <p>Choose your AI provider and start chatting.</p>
+      </div>
+    {:else}
+      {#each $messages as message, i (i)}
+        <div class="message {message.role}">
+          <div class="message-header">
+            <span class="message-role">{message.role === 'assistant' ? $currentProvider : message.role}</span>
+            <span class="message-time">{formatTime(message.timestamp)}</span>
+          </div>
+          <div class="message-content">
+            {@html processContent(message.content)}
+          </div>
+        </div>
+      {/each}
+    {/if}
+    
+    {#if isLoading}
+      <div class="loading-indicator">
+        <span class="dot"></span>
+        <span class="dot"></span>
+        <span class="dot"></span>
+      </div>
+    {/if}
+  </div>
+  
+  <div class="input-container">
+    <textarea 
+      bind:value={input} 
+      on:keydown={handleKeydown} 
+      placeholder="Type your message here... (Shift+Enter for new line)"
+      rows="1"
+      disabled={isLoading}
+    ></textarea>
+    <button class="send-btn" on:click={handleSubmit} disabled={isLoading || !input.trim()}>
+      Send
+    </button>
+  </div>
+</div>
 
 <style>
-  main {
-    font-family: sans-serif;
+  .terminal {
+    display: flex;
+    flex-direction: column;
+    color: #f0f0f0;
+    border-radius: 4px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+    height: 100%;
+    width: 100%;
+    overflow: hidden;
+    font-family: 'Fira Code', 'Cascadia Code', 'Consolas', monospace;
+  }
+
+  .terminal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background-color: #1a1a1a;
+    padding: 11px 15px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+  }
+
+  .terminal-title {
+    font-weight: bold;
+    color: white;
+  }
+
+  .terminal-controls {
+    display: flex;
+    gap: 8px;
+  }
+
+  .terminal-btn {
+    background: none;
+    border: none;
+    color: #ccc;
+    cursor: pointer;
+    font-size: 16px;
+    padding: 2px 6px;
+    border-radius: 4px;
+  }
+
+  .terminal-btn:hover {
+    background-color: #444;
+  }
+
+  .settings-panel {
+    background-color: #252525;
+    padding: 15px;
+    border-bottom: 1px solid #444;
+  }
+
+  .settings-panel h3 {
+    margin-top: 0;
+    margin-bottom: 10px;
+    color: #0f0;
+  }
+
+  .provider-selector {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 15px;
+    flex-wrap: wrap;
+  }
+
+  .provider-btn {
+    background-color: #333;
+    border: 1px solid #555;
+    color: #ccc;
+    padding: 5px 10px;
+    border-radius: 4px;
+    cursor: pointer;
+    text-transform: capitalize;
+  }
+
+  .provider-btn.active {
+    background-color: #0f04;
+    color: #fff;
+    border-color: #0f0;
+  }
+
+  .api-key-inputs {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .api-key-input {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+  }
+
+  .api-key-input label {
+    font-size: 14px;
+    color: #aaa;
+    text-transform: capitalize;
+  }
+
+  .api-key-input input {
+    background-color: #333;
+    border: 1px solid #555;
+    color: #fff;
+    padding: 8px 10px;
+    border-radius: 4px;
+    font-family: inherit;
+  }
+
+  .chat-container {
+    flex: 1;
+    padding: 15px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    border-radius: 4px;
+    border: 1px solid #ddd;
+    margin-top: 10px;
+    background-color: #1a1a1a;
+  }
+
+  .welcome-message {
+    color: #888;
     text-align: center;
+    margin: auto 0;
+  }
+
+  .message {
+    display: flex;
+    flex-direction: column;
+    max-width: 100%;
+    animation: fadeIn 0.3s ease-out;
+  }
+
+  .message-header {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 5px;
+    font-size: 12px;
+  }
+
+  .message-role {
+    color: #ff5252;
+    font-weight: bold;
+    text-transform: capitalize;
+  }
+
+  .message-time {
+    color: #888;
+  }
+
+  .message-content {
+    line-height: 1.5;
+    white-space: pre-wrap;
+    overflow-wrap: break-word;
+  }
+
+  .message.user .message-role {
+    color: white;
+  }
+
+  .message.system .message-role {
+    color: white;
+  }
+
+  .message-content :global(pre) {
+    background-color: #2a2a2a;
+    padding: 10px;
+    border-radius: 4px;
+    overflow-x: auto;
+    margin: 10px 0;
+  }
+
+  .message-content :global(code) {
+    font-family: 'Fira Code', 'Cascadia Code', 'Consolas', monospace;
+  }
+
+  .message-content :global(p) {
+    margin: 0 0 10px 0;
+  }
+
+  .loading-indicator {
+    display: flex;
+    gap: 5px;
     justify-content: center;
-    display: grid;
+    margin: 10px 0;
+  }
+
+  .dot {
+    width: 8px;
+    height: 8px;
+    background-color: #0f0;
+    border-radius: 50%;
+    animation: pulse 1.5s infinite;
+  }
+
+  .dot:nth-child(2) {
+    animation-delay: 0.3s;
+  }
+
+  .dot:nth-child(3) {
+    animation-delay: 0.6s;
+  }
+
+  .input-container {
+    display: flex;
+    align-items: flex-start;
+    padding: 10px 15px;
+    background-color: #1a1a1a;
+    border: 1px solid #ddd;
+    max-height: 250px;
+    border-radius: 4px;
+  }
+
+  textarea {
+    flex: 1;
+    background-color: #2a2a2a;
+    border: 1px solid #ddd;
+    color: #fff;
+    padding: 8px 8px;
+    font-family: inherit;
+    font-size: 14px;
+    outline: none;
+    overflow-y: auto;
+    max-height: 220px;
+    min-height: 40px;
+    border-radius: 4px;
+  }
+
+  .send-btn {
+    color: white;
+    border: 1px solid #ff5252;
+    border-radius: 4px;
+    padding: 5px 10px;
+    margin-left: 10px;
+    cursor: pointer;
+    font-family: inherit;
+  }
+
+  .send-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .send-btn:not(:disabled):hover {
+    background-color: #ff5252;
+  }
+
+  @keyframes pulse {
+    0%, 100% {
+      opacity: 0.5;
+      transform: scale(0.8);
+    }
+    50% {
+      opacity: 1;
+      transform: scale(1);
+    }
+  }
+
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+      transform: translateY(5px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  /* Make the scrollbar more terminal-like */
+  ::-webkit-scrollbar {
+    width: 8px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: #1e1e1e;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: #444;
+    border-radius: 4px;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: #555;
   }
 </style>

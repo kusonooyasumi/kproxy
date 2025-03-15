@@ -1,4 +1,12 @@
 <script>
+
+  // Props that can be passed to the component
+  export let standalone = false; // Whether the component is running in standalone mode (new window)
+  
+  
+  // Check if running in Electron
+  const isElectron = typeof window !== 'undefined' && window.electronAPI !== undefined;
+  
     // Available decoding methods
     const decodingMethods = [
       { id: 'base64', label: 'Base64' },
@@ -65,8 +73,7 @@
   </script>
   
   <div class="decoder-container">
-    <h2>Decoder Tool</h2>
-  
+
     <div class="form-group">
       <label for="decoding-method">Select Decoding Method:</label>
       <select id="decoding-method" bind:value={selectedMethod}>
@@ -115,15 +122,9 @@
       max-width: 600px;
       margin: 0 auto;
       padding: 20px;
-      border-radius: 8px;
-      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-
-    }
-  
-    h2 {
-      text-align: center;
-      margin-bottom: 20px;
-      color: #ddd;
+      border-radius: 4px;
+      border: 1px solid #ddd;
+      background-color: #1a1a1a;
     }
   
     .form-group {
@@ -171,6 +172,7 @@
       font-size: 14px;
       font-weight: 500;
       transition: background-color 0.2s;
+      border: 1px solid #ddd;
     }
   
     button:hover {
@@ -178,8 +180,9 @@
     }
   
     button:disabled {
-      background-color: #cccccc;
+      background-color: #2a2a2a;
       cursor: not-allowed;
+      color: #555;
     }
   
     button:nth-child(2) {
@@ -198,4 +201,21 @@
       border-radius: 4px;
       font-size: 14px;
     }
+    ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: #1e1e1e;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: #444;
+    border-radius: 4px;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: #555;
+  }
   </style>

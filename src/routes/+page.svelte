@@ -2,11 +2,12 @@
   import { onMount, onDestroy } from 'svelte';
   import { page } from '$app/stores';
   import RequestsTab from '$lib/components/RequestsTab.svelte';
-  import RepeaterTab from '$lib/components/RepeaterTab2.svelte';
+  import RepeaterTab from '$lib/components/RepeaterTab.svelte';
   import SettingsTab from '$lib/components/SettingsTab.svelte';
   import DecodeEncodeTab from '$lib/components/DecodeEncodeTab.svelte';
-  import FuzzTab from '$lib/components/FuzzTab2.svelte';
+  import FuzzTab from '$lib/components/FuzzTab.svelte';
   import ChatTab from '$lib/components/ChatTab.svelte';
+  import SitemapTab from '$lib/components/SitemapTab.svelte';
   import { projectState } from '$lib/stores/project';
   
   // Check if we should display the startup dialog
@@ -30,9 +31,10 @@
     const settingsInterface = document.getElementById('settings-interface') as HTMLElement;
     const chatInterface = document.getElementById('chat-interface') as HTMLElement;
     const fuzzerInterface = document.getElementById('fuzzer-interface') as HTMLElement;
+    const sitemapInterface = document.getElementById('sitemap-interface') as HTMLElement;
     const tabsBar = document.querySelector('.tabs') as HTMLElement;
     
-    if (!requestsInterface || !repeaterInterface || !decodeEncodeInterface || !settingsInterface || !tabsBar) return;
+    if (!requestsInterface || !repeaterInterface || !decodeEncodeInterface || !settingsInterface || !sitemapInterface || !fuzzerInterface || !tabsBar) return;
     
     // Hide all interface panels
     requestsInterface.style.display = 'none';
@@ -41,6 +43,7 @@
     settingsInterface.style.display = 'none';
     chatInterface.style.display = 'none';
     fuzzerInterface.style.display = 'none';
+    sitemapInterface.style.display = 'none';
     
     // Show/hide tabs based on the selected interface
     if (interfaceName === 'Settings') {
@@ -60,9 +63,13 @@
       fuzzerInterface.style.display = 'block';
     } else if (interfaceName === 'Chat') {
       chatInterface.style.display = 'block';
+    } else if (interfaceName === 'Sitemap') {
+      sitemapInterface.style.display = 'block';
+    } else if (interfaceName === 'Requests') {
+      requestsInterface.style.display = 'block';
     } else {
       // Default view (Requests)
-      requestsInterface.style.display = 'block';
+
     }
   }
   
@@ -82,7 +89,7 @@
   // Function to handle the right-click event on sidebar items
   function handleContextMenu(event: MouseEvent, tabName: string) {
     // Only handle right-clicks for Repeater and Requests tabs
-    if (tabName !== 'Repeater' && tabName !== 'Requests') return;
+    if (tabName !== 'Repeater' && tabName !== 'Requests' && tabName !== 'Fuzzer' && tabName !== 'Chat' && tabName !== 'Decode/Encode' && tabName !== 'Sitemap') return;
     
     // Prevent the default context menu
     event.preventDefault();
@@ -251,6 +258,7 @@
         <div class="sidebar-item">Fuzzer</div>
         <div class="sidebar-item">Chat</div>
         <div class="sidebar-item">Decode/Encode</div>
+        <div class="sidebar-item">Sitemap</div>
       </div>
     </div>
   </div>
@@ -264,6 +272,7 @@
       <div class="tab">Fuzzer</div>
       <div class="tab">Chat</div>
       <div class="tab">Decode/Encode</div>
+      <div class="tab">Sitemap</div>
     </div>
     
     <!-- Main Panel - Contains all interfaces -->
@@ -290,6 +299,10 @@
 
       <div id="chat-interface">
         <ChatTab />
+      </div>
+
+      <div id="sitemap-interface">
+        <SitemapTab />
       </div>
       
       <!-- Settings Interface -->
@@ -410,6 +423,7 @@
     overflow: hidden;
     z-index: 10;
     flex-shrink: 0;
+    border: 1px solid #ddd;
   }
   
   .sidebar.collapsed {
@@ -476,9 +490,10 @@
     display: flex;
     background-color: #1a1a1a;
     padding: 5px 10px;
-    border-radius: 7px;
+    border-radius: 4px;
     margin-bottom: 10px;
     box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+    border: 1px solid #ddd;
   }
   
   .tab {
@@ -486,7 +501,7 @@
     cursor: pointer;
     color: #999;
     text-align: center;
-    border-radius: 8px;
+    border-radius: 7px;
     transition: background-color 0.2s ease;
     margin: 0 2px;
   }
@@ -496,33 +511,46 @@
   }
   
   .tab.active {
-    color: #ff5252;
-    background-color: #2a2a2a;
-    border-bottom: 2px solid #ff5252;
+    color: white;
+    border: 1px solid #ff5252;
   }
   
   .main-panel {
     display: flex;
     flex-direction: column;
     flex: 1;
-    background-color: #1a1a1a;
-    border-radius: 7px;
-    padding: 15px;
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
-    overflow: hidden;
+    background-color: transparent;
+    border-radius: 4px;
+    
+    overflow: auto;
   }
   
   #requests-interface {
-    height: 100%;
+    height: calc(100vh - 165px);
+  }
+
+  #repeater-interface {
+    height: calc(100vh - 156px);
+    display: none;
   }
   
-  #repeater-interface, #decode-encode-interface, #settings-interface, #chat-interface, #fuzzer-interface{
+  #fuzzer-interface {
+    height: 100%;
+    overflow: auto;
+    display: none;
+  }
+
+  #sitemap-interface {
+    height: calc(100vh - 153px);
+    display: none;
+  }
+  
+  #decode-encode-interface, #settings-interface, #chat-interface {
     display: none;
     height: 100%;
     width: 100%;
-    background-color: #1a1a1a;
-    border-radius: 7px;
-    padding: 15px;
+    background-color: transparent;
+    border-radius: 4px;
     overflow: auto;
   }
   
@@ -753,5 +781,22 @@
     font-size: 14px;
     color: #aaa;
     margin: 0;
+  }
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: #1e1e1e;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: #444;
+    border-radius: 4px;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: #555;
   }
 </style>

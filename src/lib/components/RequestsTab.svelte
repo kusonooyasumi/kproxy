@@ -4,6 +4,8 @@
   import { writable } from 'svelte/store';
   import type { Writable } from 'svelte/store';
   import { tick } from 'svelte';
+  import CodeMirror from "svelte-codemirror-editor";
+  import { oneDark } from "@codemirror/theme-one-dark";
   
   // Define the ScopeSettings interface
   interface ScopeSettings {
@@ -38,7 +40,9 @@
     firefox: '',
     chrome: ''
   };
-  
+
+  let responseContent = '';
+  let requestContent = '';
   // Scope filter state
   let showFilterOptions = false;
   let scopeOnly = false;
@@ -306,6 +310,8 @@
   // Handle request selection
   function selectRequest(request: CapturedRequest) {
     selectedRequest = request;
+    responseContent = formatFullResponse(selectedRequest)
+    requestContent = formatFullRequest(selectedRequest)
   }
   
   // Send request to repeater
@@ -428,6 +434,7 @@
   // Toggle filter options visibility
   function toggleFilterOptions() {
     showFilterOptions = !showFilterOptions;
+    
   }
   
   // Initialize the UI after component is mounted
@@ -515,39 +522,37 @@
   });
 </script>
 
-<Splitpanes theme="no-splitter" horizontal style="" dblClickSplitter={false}>
-  <Pane size={10} minSize={10} maxSize={10}>
-    <div class="request-controls">
-      <div class="control-group">
-        <div class="status-indicator" class:running={proxyStatus.isRunning} title={proxyStatus.isRunning ? 'Proxy Running' : 'Proxy Stopped'}>
-          <div class="status-dot"></div>
-          <span>Proxy {proxyStatus.isRunning ? 'Running' : 'Stopped'}</span>
-        </div>
-        
-        <div class="control-buttons">
-          <button class="control-button" on:click={clearRequests}>Clear Requests</button>
-        <div class="filter-dropdown">
-            <button class="control-button" class:active={scopeOnly} on:click={toggleFilterOptions}>
-              Filter {scopeOnly ? '(Active)' : ''}
-              <span class="dropdown-arrow">▼</span>
-            </button>
-            
-            {#if showFilterOptions}
-              <div class="dropdown-content">
-                <label class="filter-option">
-                  <input type="checkbox" bind:checked={scopeOnly}>
-                  <span>In scope items only</span>
-                </label>
-                {#if scopeOnly && filteredRequests.length === 0 && requests.length > 0}
-                  <div class="filter-warning">No requests match the current scope</div>
-                {/if}
-              </div>
-            {/if}
-          </div>
-        </div>
-      </div>
+<div class="request-controls">
+  <div class="control-group">
+    <div class="status-indicator" class:running={proxyStatus.isRunning} title={proxyStatus.isRunning ? 'Proxy Running' : 'Proxy Stopped'}>
+      <div class="status-dot"></div>
+      <span>Proxy {proxyStatus.isRunning ? 'Running' : 'Stopped'}</span>
     </div>
     
+    <div class="control-buttons">
+      <button class="control-button" on:click={clearRequests}>Clear Requests</button>
+    <div class="filter-dropdown">
+        <button class="control-button" class:active={scopeOnly} on:click={toggleFilterOptions}>
+          Filter {scopeOnly ? '(Active)' : ''}
+          <span class="dropdown-arrow">▼</span>
+        </button>
+        
+        {#if showFilterOptions}
+          <div class="dropdown-content">
+            <label class="filter-option">
+              <input type="checkbox" bind:checked={scopeOnly}>
+              <span>In scope items only</span>
+            </label>
+            {#if scopeOnly && filteredRequests.length === 0 && requests.length > 0}
+              <div class="filter-warning">No requests match the current scope</div>
+            {/if}
+          </div>
+        {/if}
+      </div>
+    </div>
+  </div>
+</div>
+<div class="main-panel">
     <!-- Certificate Installation Instructions Modal -->
     {#if showCertInstructions}
       <div class="modal-overlay">
@@ -588,7 +593,9 @@
         <div>Loading...</div>
       </div>
     {/if}
-  </Pane>
+
+
+<Splitpanes theme="no-splitter" horizontal style="" dblClickSplitter={false}>
   <Pane>
     <Splitpanes theme="modern-theme" horizontal style="">
       <Pane>
@@ -658,13 +665,8 @@
               <div class="panel-content">
                 <div class="line-numbers-wrapper">
                   {#if selectedRequest}
-                    {@const requestLines = formatFullRequest(selectedRequest).split('\n')}
-                    <div class="line-numbers">
-                      {#each Array(requestLines.length) as _, i}
-                        <div class="line-number">{i + 1}</div>
-                      {/each}
-                    </div>
-                    <pre class="content-block">{formatFullRequest(selectedRequest)}</pre>
+                   
+                    <CodeMirror theme={oneDark} bind:value={requestContent} editable={false}/>
                   {/if}
                 </div>
               </div>
@@ -677,13 +679,8 @@
               <div class="panel-content">
                 <div class="line-numbers-wrapper">
                   {#if selectedRequest}
-                    {@const responseLines = formatFullResponse(selectedRequest).split('\n')}
-                    <div class="line-numbers">
-                      {#each Array(responseLines.length) as _, i}
-                        <div class="line-number">{i + 1}</div>
-                      {/each}
-                    </div>
-                    <pre class="content-block">{formatFullResponse(selectedRequest)}</pre>
+                   
+                    <CodeMirror theme={oneDark} bind:value={responseContent} editable={false}/>
                   {/if}
                 </div>
               </div>
@@ -695,7 +692,7 @@
   </Pane>
 
 </Splitpanes>
-
+</div>
 {#if contextMenuVisible && contextMenuRequest}
   <div 
     class="context-menu"
@@ -726,9 +723,21 @@
 {/if}
 
 <style>
+
+.main-panel {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    background-color: transparent;
+    border-radius: 4px;
+    height: 100%;
+    border: 1px solid #ddd;
+  }
+
   /* Modern Theme */
   :global(.splitpanes.modern-theme .splitpanes__pane) {
     background-color: transparent;
+    
   }
  
   :global(.splitpanes.modern-theme .splitpanes__splitter) {
@@ -772,6 +781,7 @@
   /* No Splitter Theme */
   :global(.splitpanes.no-splitter .splitpanes__pane) {
     background-color: transparent;
+    border-radius: 4px;
   }
  
   :global(.splitpanes.no-splitter .splitpanes__splitter) {
@@ -801,16 +811,17 @@
   
   /* Request Controls */
   .request-controls {
-    padding: 12px 15px;
+    padding: 8px 15px;
     background-color: #1a1a1a;
-    border-radius: 7px;
+    border-radius: 4px;
     margin-bottom: 10px;
     display: flex;
     flex-direction: column;
     gap: 8px;
     box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+    border: 1px solid #ddd;
   }
-  
+
   .control-group {
     display: flex;
     justify-content: space-between;
@@ -822,6 +833,9 @@
     align-items: center;
     gap: 10px;
     font-weight: bold;
+    max-width: 300px;
+    white-space: nowrap;
+    text-overflow: ellipsis;
   }
   
   .status-dot {
@@ -839,16 +853,21 @@
   .control-buttons {
     display: flex;
     gap: 10px;
+    max-width: 300px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
   
   .control-button {
-    padding: 8px 14px;
+    padding: 4px 14px;
     background-color: #333;
     border: none;
-    border-radius: 8px;
+    border-radius: 4px;
     color: #fff;
     cursor: pointer;
     transition: background-color 0.2s ease;
+    border: 1px solid #ddd;
   }
   
   .control-button:hover {
@@ -890,17 +909,20 @@
     margin-left: 5px;
   }
   
-  .dropdown-content {
-    position: absolute;
-    right: 0;
-    top: 100%;
-    min-width: 180px;
-    background-color: #2a2a2a;
-    border-radius: 6px;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-    z-index: 10;
-    padding: 8px;
+
+
+  .dropdown-content  {
     margin-top: 5px;
+    position: fixed;
+    right: 10px;
+    background-color: #2a2a2a;
+    border-radius: 4px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+    z-index: 100;
+    min-width: 180px;
+    padding: 4px 0;
+    overflow: auto;
+    animation: fadeIn 0.15s ease-out;
   }
   
   .filter-option {
@@ -953,7 +975,6 @@
     width: 100%;
     height: 100%;
     background-color: #1a1a1a;
-    border-radius: 7px;
     margin-bottom: 10px;
     box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
   }
@@ -966,20 +987,28 @@
   
   .request-table th {
     background-color: #1a1a1a;
-    padding: 12px 10px;
-    text-align: left;
+    text-align: center;
     color: #ddd;
-    font-weight: normal;
+    height: 25px;
     position: sticky;
     top: 0;
     z-index: 1;
     border-bottom: 1px solid #333;
+    max-width: 300px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
   
   .request-table td {
     padding: 5px;
     border-bottom: 1px solid #333;
     color: #ddd;
+    text-align: center;
+    max-width: 300px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
   
   .request-table tr:hover {
@@ -1076,6 +1105,7 @@
     flex-direction: column;
     height: 100%;
     overflow: hidden;
+    background-color: #1a1a1a;
   }
   
   .request-panel {
@@ -1308,5 +1338,22 @@
   @keyframes fadeIn {
     from { opacity: 0; transform: scale(0.95); }
     to { opacity: 1; transform: scale(1); }
+  }
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: #1e1e1e;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: #444;
+    border-radius: 4px;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: #555;
   }
 </style>
