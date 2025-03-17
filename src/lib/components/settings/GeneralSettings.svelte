@@ -88,9 +88,10 @@
   
   .settings-card {
     background-color: #2c2c2c;
-    border-radius: 6px;
+    border-radius: 4px;
     overflow: hidden;
     box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    border: 1px solid #ddd;
   }
   
   .settings-card-header {

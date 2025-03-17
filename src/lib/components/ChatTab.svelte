@@ -298,7 +298,7 @@
   .settings-panel h3 {
     margin-top: 0;
     margin-bottom: 10px;
-    color: #0f0;
+    color: #ff5252;
   }
 
   .provider-selector {
@@ -319,9 +319,8 @@
   }
 
   .provider-btn.active {
-    background-color: #0f04;
     color: #fff;
-    border-color: #0f0;
+    border-color: #ff5252;
   }
 
   .api-key-inputs {
@@ -359,9 +358,7 @@
     flex-direction: column;
     gap: 15px;
     border-radius: 4px;
-    border: 1px solid #ddd;
     margin-top: 10px;
-    background-color: #1a1a1a;
   }
 
   .welcome-message {
@@ -434,7 +431,7 @@
   .dot {
     width: 8px;
     height: 8px;
-    background-color: #0f0;
+    background-color: #ff5252;
     border-radius: 50%;
     animation: pulse 1.5s infinite;
   }
@@ -511,23 +508,5 @@
       opacity: 1;
       transform: translateY(0);
     }
-  }
-
-  /* Make the scrollbar more terminal-like */
-  ::-webkit-scrollbar {
-    width: 8px;
-  }
-
-  ::-webkit-scrollbar-track {
-    background: #1e1e1e;
-  }
-
-  ::-webkit-scrollbar-thumb {
-    background: #444;
-    border-radius: 4px;
-  }
-
-  ::-webkit-scrollbar-thumb:hover {
-    background: #555;
   }
 </style>

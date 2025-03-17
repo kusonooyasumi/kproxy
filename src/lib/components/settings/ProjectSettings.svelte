@@ -173,8 +173,9 @@
   
   .project-info {
     background-color: #222;
-    border-radius: 8px;
+    border-radius: 4px;
     padding: 15px;
+    border: 1px solid #ddd;
   }
   
   .info-row {
@@ -220,7 +221,8 @@
     border: none;
     color: #fff;
     padding: 15px;
-    border-radius: 10px;
+    border-radius: 4%;
+    border: 1px solid #ddd;
     cursor: pointer;
     transition: background-color 0.2s;
     text-align: center;

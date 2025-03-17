@@ -492,7 +492,7 @@
     display: flex;
     flex-direction: column;
     transition: margin-left 0.3s ease;
-    height: calc(100vh - 20px);
+    height: 100%;
     margin: 10px 10px 0 0;
     min-width: 0; /* Prevent flex items from overflowing */
   }
@@ -522,8 +522,9 @@
   }
   
   .tab.active {
-    color: white;
-    border: 1px solid #ff5252;
+    background-color: #2a2a2a;
+    color: #fff;
+    border: 2px solid #ff5252;
   }
   
   .main-panel {
@@ -550,13 +551,18 @@
     overflow: auto;
     display: none;
   }
-
+  
   #sitemap-interface {
-    height: calc(100vh - 150px);
+    height: calc(100vh - 170px);
     display: none;
   }
 
-  #decode-encode-interface, #settings-interface, #chat-interface {
+  #chat-interface {
+    height: calc(100vh - 78.5px);
+    display: none;
+  }
+
+  #decode-encode-interface, #settings-interface {
     display: none;
     height: 100%;
     width: 100%;

@@ -41,7 +41,6 @@
     <div class="sidebar-item" class:active={selectedSection === 'Proxy'} on:click={() => selectSection('Proxy')}>Proxy</div>
     <div class="sidebar-item" class:active={selectedSection === 'General'} on:click={() => selectSection('General')}>General</div>
     <div class="sidebar-item" class:active={selectedSection === 'Scope'} on:click={() => selectSection('Scope')}>Scope</div>
-    <div class="sidebar-item" class:active={selectedSection === 'Theme'} on:click={() => selectSection('Theme')}>Theme</div>
   </div>
   
   <!-- Settings Content -->
@@ -66,11 +65,6 @@
         <h2>Scope Settings</h2>
         <svelte:component this={ScopeSettings} />
       </div>
-    {:else if selectedSection === 'Theme'}
-      <div class="settings-section">
-        <h2>Theme Settings</h2>
-        <svelte:component this={ThemeSettings} />
-      </div>
     {/if}
   </div>
 </div>
@@ -88,7 +82,7 @@
     width: 200px;
     background-color: #1a1a1a;
     padding: 15px 0;
-    border-radius: 12px;
+    border-radius: 4px;
     box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
     overflow: hidden;
   }
@@ -99,7 +93,8 @@
     color: #ddd;
     transition: all 0.2s ease;
     margin: 2px 8px;
-    border-radius: 8px;
+    border-radius: 4px;
+    border: 1px solid #ddd;
   }
   
   .sidebar-item:hover {
@@ -110,7 +105,7 @@
   .sidebar-item.active {
     background-color: #2a2a2a;
     color: #fff;
-    border-left: 3px solid #ff5252;
+    border: 3px solid #ff5252;
   }
   
   .settings-content {
@@ -118,8 +113,9 @@
     padding: 20px;
     overflow-y: auto;
     background-color: #1a1a1a;
-    border-radius: 12px;
+    border-radius: 4px;
     box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+    border: 1px solid #ddd;
   }
   
   .settings-section {
@@ -140,11 +136,12 @@
   :global(.settings-container select) {
     background-color: #2a2a2a;
     border: 1px solid #444;
-    border-radius: 8px;
+    border-radius: 4px;
     padding: 8px 12px;
     color: #fff;
     width: 100%;
     margin-bottom: 15px;
+    border: 1px solid #ddd;
   }
 
   :global(.settings-container button) {
@@ -155,6 +152,7 @@
     padding: 8px 15px;
     cursor: pointer;
     transition: background-color 0.2s ease;
+    border: 1px solid #ddd;
   }
 
   :global(.settings-container button:hover) {
@@ -173,7 +171,8 @@
     margin-bottom: 20px;
     background-color: #2a2a2a;
     padding: 15px;
-    border-radius: 12px;
+    border-radius: 4px;
+    border: 1px solid #ddd;
   }
 
   :global(.settings-container .form-group label) {
