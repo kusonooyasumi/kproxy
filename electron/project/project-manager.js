@@ -17,6 +17,7 @@ class ProjectManager {
       requests: [],
       proxiedRequests: [],
       repeaterRequests: [],
+      chats: [], // Add support for storing chat conversations
       scopes: {
         inScope: [],
         outOfScope: []

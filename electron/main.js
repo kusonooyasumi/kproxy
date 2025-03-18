@@ -362,16 +362,6 @@ ipcMain.handle('send-to-repeater', async (event, request) => {
     if (tabWindows['Repeater']) {
       // Send the request to the existing Repeater window
       tabWindows['Repeater'].webContents.send('send-to-repeater', request);
-    } else {
-      // If no Repeater window exists, first create one
-      await createTabWindow('Repeater');
-      
-      // Wait a bit for the window to initialize
-      setTimeout(() => {
-        if (tabWindows['Repeater']) {
-          tabWindows['Repeater'].webContents.send('send-to-repeater', request);
-        }
-      }, 1000);
     }
     
     // Also update the main window if it exists

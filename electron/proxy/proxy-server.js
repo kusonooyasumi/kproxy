@@ -17,6 +17,7 @@ class ProxyServer extends EventEmitter {
     this.requestId = 1;
     this.certificatePath = null;
     this.certificateCache = new Map();
+    this.customHeaders = options.customHeaders || {};
     
     // Add global unhandled error handling
     process.on('uncaughtException', (err) => {
@@ -102,6 +103,16 @@ class ProxyServer extends EventEmitter {
 
     // Create a proxy instance
     const proxy = httpProxy.createProxyServer({});
+
+    // Add custom headers to the request
+    if (Object.keys(this.customHeaders).length > 0) {
+      // Create a copy of the original headers and add custom headers
+      const modifiedHeaders = {...req.headers};
+      Object.keys(this.customHeaders).forEach(headerName => {
+        modifiedHeaders[headerName] = this.customHeaders[headerName];
+      });
+      req.headers = modifiedHeaders;
+    }
 
     // Record request details
     const requestDetails = {
@@ -228,6 +239,16 @@ class ProxyServer extends EventEmitter {
         // Handle request on HTTPS server
         server.on('request', (req, res) => {
           const secureReqId = this.requestId++;
+          
+          // Add custom headers to the HTTPS request
+          if (Object.keys(this.customHeaders).length > 0) {
+            // Create a copy of the original headers and add custom headers
+            const modifiedHeaders = {...req.headers};
+            Object.keys(this.customHeaders).forEach(headerName => {
+              modifiedHeaders[headerName] = this.customHeaders[headerName];
+            });
+            req.headers = modifiedHeaders;
+          }
           
           // Create request details for the actual HTTPS request
           const secureRequestDetails = {
@@ -452,8 +473,18 @@ class ProxyServer extends EventEmitter {
     return {
       isRunning: this.isRunning,
       port: this.port,
-      certificatePath: this.certificatePath
+      certificatePath: this.certificatePath,
+      customHeaders: this.customHeaders
     };
+  }
+  
+  /**
+   * Set custom headers to be added to each request
+   * @param {Object} headers - Custom headers as key-value pairs
+   */
+  setCustomHeaders(headers) {
+    this.customHeaders = headers || {};
+    console.log('Custom headers set:', this.customHeaders);
   }
 
   /**

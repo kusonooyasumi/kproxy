@@ -532,6 +532,19 @@ function toggleColumnVisibility(columnId: string, event?: Event) {
     }
   }
   
+  // Copy request URL to clipboard
+  function copyRequestUrl(request: CapturedRequest) {
+    const url = `${request.protocol}://${request.host}${request.path}`;
+    
+    navigator.clipboard.writeText(url)
+      .then(() => {
+        console.log('URL copied to clipboard:', url);
+      })
+      .catch((error) => {
+        console.error('Failed to copy URL to clipboard:', error);
+      });
+  }
+  
   // Handle right-click on request
   let contextMenuVisible = false;
   let contextMenuX = 0;
@@ -955,6 +968,12 @@ function toggleColumnVisibility(columnId: string, event?: Event) {
     }}>
       Send to Repeater
     </div>
+    <div class="context-menu-item" on:click={() => {
+      if (contextMenuRequest) copyRequestUrl(contextMenuRequest);
+      closeContextMenu();
+    }}>
+      Copy URL
+    </div>
   </div>
 {/if}
 
@@ -969,6 +988,12 @@ function toggleColumnVisibility(columnId: string, event?: Event) {
       closePanelContextMenu();
     }}>
       Send to Repeater
+    </div>
+    <div class="context-menu-item" on:click={() => {
+      if (selectedRequest) copyRequestUrl(selectedRequest);
+      closePanelContextMenu();
+    }}>
+      Copy URL
     </div>
   </div>
 {/if}

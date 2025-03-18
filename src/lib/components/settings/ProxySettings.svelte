@@ -5,8 +5,22 @@
   const isElectron = typeof window !== 'undefined' && window.electronAPI !== undefined;
   
   // Proxy state
-  let proxyStatus = { isRunning: false, port: 8080, certificatePath: '' };
-  let proxySettings = { port: 8080, autoStart: false };
+  let proxyStatus: { isRunning: boolean; port: number; certificatePath: string } = { 
+    isRunning: false, 
+    port: 8080, 
+    certificatePath: '' 
+  };
+  let proxySettings: { port: number; autoStart: boolean; customHeaders?: Record<string, string> } = { 
+    port: 8080, 
+    autoStart: false, 
+    customHeaders: {} 
+  };
+  
+  // Custom headers state
+  let customHeaders: Record<string, string> = {};
+  let newHeaderName = '';
+  let newHeaderValue = '';
+  let headerValidation = { error: false, message: '' };
   let showCertInstructions = false;
   let certInstructions = {
     windows: '',
@@ -108,8 +122,54 @@
       
       // Get proxy settings
       proxySettings = await window.electronAPI.proxy.getSettings();
+      
+      // Load custom headers
+      customHeaders = await window.electronAPI.proxy.getCustomHeaders();
     } catch (error) {
       console.error('Failed to load proxy data:', error);
+    }
+  }
+  
+  // Add a new custom header
+  async function addCustomHeader(): Promise<void> {
+    // Validate header name and value
+    if (!newHeaderName.trim()) {
+      headerValidation = { error: true, message: 'Header name cannot be empty' };
+      return;
+    }
+    
+    // Add header to the list
+    const updatedHeaders = { ...customHeaders, [newHeaderName]: newHeaderValue };
+    
+    try {
+      // Update headers via API
+      if (window.electronAPI?.proxy) {
+        customHeaders = await window.electronAPI.proxy.updateCustomHeaders(updatedHeaders);
+      }
+      
+      // Clear inputs
+      newHeaderName = '';
+      newHeaderValue = '';
+      headerValidation = { error: false, message: '' };
+    } catch (error) {
+      console.error('Failed to update custom headers:', error);
+      headerValidation = { error: true, message: 'Failed to add header' };
+    }
+  }
+  
+  // Remove a custom header
+  async function removeCustomHeader(headerName: string): Promise<void> {
+    // Create a copy of headers without the one to remove
+    const updatedHeaders: Record<string, string> = { ...customHeaders };
+    delete updatedHeaders[headerName];
+    
+    try {
+      // Update headers via API
+      if (window.electronAPI?.proxy) {
+        customHeaders = await window.electronAPI.proxy.updateCustomHeaders(updatedHeaders);
+      }
+    } catch (error) {
+      console.error('Failed to remove custom header:', error);
     }
   }
   
@@ -184,6 +244,70 @@
           Auto-start proxy
         </label>
       </div>
+    </div>
+  </div>
+  
+  <!-- Custom Headers -->
+  <div class="settings-card">
+    <div class="settings-card-header">
+      <h3>Custom Headers</h3>
+    </div>
+    <div class="settings-card-content">
+      <p class="settings-description">
+        Add custom HTTP headers to every request that goes through the proxy.
+      </p>
+      
+      <div class="settings-group">
+        <div class="header-form">
+          <div class="header-inputs">
+            <input
+              type="text"
+              bind:value={newHeaderName}
+              placeholder="Header Name"
+              class="settings-input header-input"
+            />
+            <input
+              type="text"
+              bind:value={newHeaderValue}
+              placeholder="Header Value"
+              class="settings-input header-input"
+            />
+          </div>
+          <button class="settings-button" on:click={addCustomHeader}>Add Header</button>
+        </div>
+        
+        {#if headerValidation.error}
+          <p class="error-message">{headerValidation.message}</p>
+        {/if}
+      </div>
+      
+      {#if Object.keys(customHeaders).length > 0}
+        <div class="header-list">
+          <h4>Current Headers:</h4>
+          <div class="headers-table">
+            <div class="headers-table-header">
+              <div class="header-name">Name</div>
+              <div class="header-value">Value</div>
+              <div class="header-action">Action</div>
+            </div>
+            {#each Object.entries(customHeaders) as [name, value]}
+              <div class="header-item">
+                <div class="header-name">{name}</div>
+                <div class="header-value">{value}</div>
+                <div class="header-action">
+                  <button
+                    class="remove-button"
+                    on:click={() => removeCustomHeader(name)}
+                    title="Remove header"
+                  >×</button>
+                </div>
+              </div>
+            {/each}
+          </div>
+        </div>
+      {:else}
+        <p class="no-headers">No custom headers defined</p>
+      {/if}
     </div>
   </div>
   
@@ -473,5 +597,100 @@
     border: none;
     border-radius: 4px;
     cursor: pointer;
+  }
+  
+  /* Custom Headers Styles */
+  .header-form {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 15px;
+    align-items: flex-start;
+  }
+  
+  .header-inputs {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    flex: 1;
+  }
+  
+  .header-input {
+    width: 100%;
+  }
+  
+  .error-message {
+    color: #ff5252;
+    font-size: 14px;
+    margin: 5px 0;
+  }
+  
+  .header-list {
+    margin-top: 20px;
+  }
+  
+  .header-list h4 {
+    color: #ddd;
+    margin-top: 0;
+    margin-bottom: 10px;
+    font-size: 15px;
+    font-weight: normal;
+  }
+  
+  .headers-table {
+    border: 1px solid #444;
+    border-radius: 4px;
+    overflow: hidden;
+  }
+  
+  .headers-table-header {
+    display: grid;
+    grid-template-columns: 1fr 2fr 80px;
+    background-color: #1a1a1a;
+    padding: 10px;
+    font-weight: bold;
+    color: #ddd;
+    border-bottom: 1px solid #444;
+  }
+  
+  .header-item {
+    display: grid;
+    grid-template-columns: 1fr 2fr 80px;
+    padding: 10px;
+    border-bottom: 1px solid #333;
+  }
+  
+  .header-item:last-child {
+    border-bottom: none;
+  }
+  
+  .header-name, .header-value {
+    word-break: break-word;
+    color: #ddd;
+  }
+  
+  .header-action {
+    display: flex;
+    justify-content: center;
+  }
+  
+  .remove-button {
+    width: 24px;
+    height: 24px;
+    background-color: #ff5252;
+    color: white;
+    border: none;
+    border-radius: 50%;
+    cursor: pointer;
+    font-size: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+  }
+  
+  .no-headers {
+    color: #888;
+    font-style: italic;
+    margin-top: 15px;
   }
 </style>

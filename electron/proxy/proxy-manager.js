@@ -15,7 +15,8 @@ class ProxyManager {
         requests: [],
         proxySettings: {
           port: 8080,
-          autoStart: false
+          autoStart: false,
+          customHeaders: {}
         },
         scopeSettings: {
           inScope: ['example.com', '*.example.org'],
@@ -45,6 +46,12 @@ class ProxyManager {
     
     // Auto-start proxy if configured
     const proxySettings = this.store.get('proxySettings');
+    
+    // Apply custom headers if defined
+    if (proxySettings.customHeaders && Object.keys(proxySettings.customHeaders).length > 0) {
+      this.proxyServer.setCustomHeaders(proxySettings.customHeaders);
+    }
+    
     if (proxySettings.autoStart) {
       this.proxyServer.port = proxySettings.port;
       this.startProxy();
@@ -107,6 +114,22 @@ class ProxyManager {
    * Set up IPC handlers
    */
   setupIpcHandlers() {
+    // Get custom headers
+    ipcMain.handle('get-proxy-custom-headers', () => {
+      return this.store.get('proxySettings.customHeaders') || {};
+    });
+    
+    // Update custom headers
+    ipcMain.handle('update-proxy-custom-headers', (event, headers) => {
+      this.store.set('proxySettings.customHeaders', headers);
+      
+      // Update on the proxy server if it's running
+      if (this.proxyServer.isRunning) {
+        this.proxyServer.setCustomHeaders(headers);
+      }
+      
+      return headers;
+    });
     // Start proxy server
     ipcMain.handle('start-proxy', (event, options = {}) => {
       const port = options.port || this.store.get('proxySettings.port');

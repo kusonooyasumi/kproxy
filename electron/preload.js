@@ -93,6 +93,12 @@ const validChannels = [
     // Update proxy settings
     updateSettings: (settings) => ipcRenderer.invoke('update-proxy-settings', settings),
     
+    // Get custom headers
+    getCustomHeaders: () => ipcRenderer.invoke('get-proxy-custom-headers'),
+    
+    // Update custom headers
+    updateCustomHeaders: (headers) => ipcRenderer.invoke('update-proxy-custom-headers', headers),
+    
     // Get all captured requests
     getRequests: () => ipcRenderer.invoke('get-requests'),
     

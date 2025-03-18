@@ -14,8 +14,10 @@ declare global {
         start: (options?: { port?: number }) => Promise<{ isRunning: boolean; port: number; certificatePath: string }>;
         stop: () => Promise<{ isRunning: boolean; port: number; certificatePath: string }>;
         getStatus: () => Promise<{ isRunning: boolean; port: number; certificatePath: string }>;
-        getSettings: () => Promise<{ port: number; autoStart: boolean }>;
-        updateSettings: (settings: { port?: number; autoStart?: boolean }) => Promise<{ port: number; autoStart: boolean }>;
+        getSettings: () => Promise<{ port: number; autoStart: boolean; customHeaders?: Record<string, string> }>;
+        updateSettings: (settings: { port?: number; autoStart?: boolean; customHeaders?: Record<string, string> }) => Promise<{ port: number; autoStart: boolean; customHeaders?: Record<string, string> }>;
+        getCustomHeaders: () => Promise<Record<string, string>>;
+        updateCustomHeaders: (headers: Record<string, string>) => Promise<Record<string, string>>;
         getRequests: () => Promise<Array<CapturedRequest>>;
         clearRequests: () => Promise<{ success: boolean }>;
         exportCertificate: () => Promise<{ success: boolean; certPath?: string; message?: string; error?: string; canceled?: boolean }>;
@@ -52,6 +54,7 @@ declare global {
     requests: CapturedRequest[];
     repeaterRequests?: CapturedRequest[];
     proxiedRequests?: CapturedRequest[];
+    chats?: ChatConversation[];
     scopes?: {
       inScope: string[];
       outOfScope: string[];
@@ -62,6 +65,22 @@ declare global {
         autoStart: boolean;
       };
     };
+  }
+
+  // Interface for chat conversations
+  interface ChatConversation {
+    id: string;
+    name: string;
+    messages: Message[];
+    createdAt: string;
+    updatedAt: string;
+  }
+
+  // Chat message interface
+  interface Message {
+    role: 'user' | 'assistant' | 'system';
+    content: string;
+    timestamp: Date | string;
   }
 
   // Interface for captured HTTP/HTTPS requests

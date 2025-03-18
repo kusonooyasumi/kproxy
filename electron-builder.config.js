@@ -35,7 +35,9 @@ export default {
   
   // Publish configuration (for auto-updates, if needed later)
   publish: {
-    provider: "generic",
-    url: "https://example.com/auto-updates"
+    provider: "github",
+    owner: "kusonooyasumi", // Replace with your actual GitHub username
+    repo: "kproxy", // Replace with your actual repo name
+    releaseType: "release"
   }
 };

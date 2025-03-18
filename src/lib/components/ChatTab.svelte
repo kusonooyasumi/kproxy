@@ -6,16 +6,27 @@
   import hljs from 'highlight.js';
   import 'highlight.js/styles/atom-one-dark.css';
   import { browser } from '$app/environment';
+  import { clickOutside } from '$lib/actions/clickOutside';
   
   // Import our stores
   import { apiKeys, currentProvider, type Provider } from '$lib/stores/settings';
-  import { messages, addMessage, clearMessages, type Message } from '$lib/stores/chat';
+  import { chatStore, type Message, type Conversation } from '$lib/stores/chat';
+  import { projectState } from '$lib/stores/project';
+
+  // Props
+  export let standalone = false;
 
   // Local state
   let input = '';
   let isLoading = false;
-  let chatContainer: HTMLElement;
+  let chatContainer: HTMLElement | null = null;
   let isSettingsOpen = false;
+  let newChatName = '';
+  let isEditingTitle = false;
+  let activeConversation: Conversation | null = null;
+  let isSidebarOpen = true;
+  let editingConversationId: string | null = null;
+  let editingConversationName = '';
 
   // Define a proper type for the highlight function
   type HighlightFunction = (code: string, lang: string) => string;
@@ -34,13 +45,28 @@
   // Set the options
   marked.setOptions(markedOptions);
 
+  // Subscribe to get the active conversation
+  chatStore.activeConversation.subscribe((conversation) => {
+    activeConversation = conversation;
+  });
+
+  onMount(() => {
+    // Initialize chat container ref
+    if (browser) {
+      // If no active conversation, create one
+      if (!activeConversation && $chatStore.conversations.length === 0) {
+        chatStore.createNewConversation();
+      }
+    }
+  });
+
   // Submit message to the selected AI provider
   async function handleSubmit(): Promise<void> {
     if (!input.trim() || isLoading) return;
     
     // Check if API key is set
     if (!$apiKeys[$currentProvider]) {
-      addMessage({
+      chatStore.addMessage({
         role: 'system',
         content: `Error: No API key set for ${$currentProvider}. Please configure your API key in settings.`,
         timestamp: new Date()
@@ -54,12 +80,15 @@
       timestamp: new Date()
     };
     
-    addMessage(userMessage);
+    chatStore.addMessage(userMessage);
     const userInput = input;
     input = '';
     isLoading = true;
     
     try {
+      // Get chat history to send
+      const history = activeConversation?.messages.slice(0, -1) || [];
+      
       // Send request to backend
       const response = await fetch('/api/chat', {
         method: 'POST',
@@ -70,7 +99,7 @@
           message: userInput,
           provider: $currentProvider,
           apiKey: $apiKeys[$currentProvider],
-          history: $messages.slice(0, -1) // Send previous messages as context
+          history: history
         })
       });
       
@@ -86,7 +115,7 @@
         timestamp: new Date()
       };
       
-      addMessage(assistantMessage);
+      chatStore.addMessage(assistantMessage);
       
       // Scroll to bottom
       setTimeout(() => {
@@ -97,7 +126,7 @@
       
     } catch (error: unknown) {
       console.error('Error calling AI API:', error);
-      addMessage({
+      chatStore.addMessage({
         role: 'system',
         content: `Error: Failed to get response from ${$currentProvider}. ${error instanceof Error ? error.message : 'Unknown error'}`,
         timestamp: new Date()
@@ -105,6 +134,42 @@
     } finally {
       isLoading = false;
     }
+  }
+
+  // Create a new conversation
+  function createNewChat(): void {
+    const name = newChatName.trim() || `Chat ${$chatStore.conversations.length + 1}`;
+    chatStore.createNewConversation(name);
+    newChatName = '';
+  }
+
+  // Start editing a conversation title
+  function startEditConversation(id: string, name: string): void {
+    editingConversationId = id;
+    editingConversationName = name;
+  }
+
+  // Save conversation title edit
+  function saveConversationEdit(): void {
+    if (editingConversationId && editingConversationName.trim()) {
+      chatStore.renameConversation(editingConversationId, editingConversationName.trim());
+    }
+    editingConversationId = null;
+  }
+
+  // Cancel conversation title edit
+  function cancelConversationEdit(): void {
+    editingConversationId = null;
+  }
+
+  // Delete the current conversation
+  function deleteCurrentChat(): void {
+    chatStore.clearActiveConversation();
+  }
+
+  // Toggle sidebar visibility
+  function toggleSidebar(): void {
+    isSidebarOpen = !isSidebarOpen;
   }
 
   // Toggle settings panel
@@ -138,6 +203,11 @@
     return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   }
 
+  // Format date
+  function formatDate(date: Date): string {
+    return date.toLocaleDateString([], { month: 'short', day: 'numeric' });
+  }
+
   // Process message content with markdown
   function processContent(content: string): string {
     return marked(content) as string;
@@ -151,99 +221,173 @@
     }
   }
 
+  // Select a conversation
+  function selectConversation(id: string): void {
+    chatStore.setActiveConversation(id);
+  }
+
+  // Get truncated preview of last message in a conversation
+  function getConversationPreview(conversation: Conversation): string {
+    if (conversation.messages.length === 0) return "No messages";
+    const lastMessage = conversation.messages[conversation.messages.length - 1];
+    const content = lastMessage.content;
+    return content.length > 40 ? content.substring(0, 40) + "..." : content;
+  }
+
   // Auto-scroll when messages change
-  $: if ($messages && chatContainer && browser) {
+  $: if (activeConversation?.messages && chatContainer && browser) {
     setTimeout(() => {
-      chatContainer.scrollTop = chatContainer.scrollHeight;
+      if (chatContainer) {
+        chatContainer.scrollTop = chatContainer.scrollHeight;
+      }
     }, 0);
   }
 </script>
 
-<div class="terminal">
-  <div class="terminal-header">
-    <div class="terminal-title">Chatting with {$currentProvider.toUpperCase()}</div>
-    <div class="terminal-controls">
-      <button class="terminal-btn" on:click={toggleSettings}>⚙️</button>
-      <button class="terminal-btn" on:click={clearMessages}>🗑️</button>
-    </div>
-  </div>
-  
-  {#if isSettingsOpen}
-    <div class="settings-panel" transition:fade={{ duration: 150 }}>
-      <h3>API Settings</h3>
-      <div class="provider-selector">
-        {#each Object.keys($apiKeys) as provider}
-          <button 
-            class="provider-btn {$currentProvider === provider ? 'active' : ''}" 
-            on:click={() => changeProvider(provider as Provider)}
-          >
-            {provider}
-          </button>
-        {/each}
+<div class="chat-terminal {standalone ? 'standalone' : ''}">
+  <div class="terminal-layout {isSidebarOpen ? 'with-sidebar' : 'sidebar-collapsed'}">
+    <div class="sidebar" class:hidden={!isSidebarOpen}>
+      <div class="sidebar-header">
+        <h3>Conversations</h3>
+        <button class="new-chat-btn" on:click={createNewChat}>
+          <span class="icon">+</span>
+          <span class="label">New Chat</span>
+        </button>
       </div>
       
-      <div class="api-key-inputs">
-        {#each Object.entries($apiKeys) as [provider, key]}
-          <div class="api-key-input">
-            <label for="{provider}-key">{provider} API Key:</label>
-            <input 
-              type="password" 
-              id="{provider}-key" 
-              value={key} 
-              on:change={(e) => handleInputChange(e, provider as Provider)}
-              placeholder="Enter your API key"
-            />
-          </div>
-        {/each}
+      <div class="conversations-list">
+        {#if $chatStore.conversations.length === 0}
+          <div class="empty-state">No conversations yet</div>
+        {:else}
+          {#each $chatStore.conversations as conversation (conversation.id)}
+            <div 
+              class="conversation-item {$chatStore.activeConversationId === conversation.id ? 'active' : ''}"
+              on:click={() => selectConversation(conversation.id)}
+            >
+              {#if editingConversationId === conversation.id}
+                <!-- svelte-ignore a11y-click-events-have-key-events -->
+                <div class="edit-title-container" use:clickOutside={saveConversationEdit}>
+                  <input 
+                    type="text" 
+                    bind:value={editingConversationName} 
+                    on:keydown={(e) => e.key === 'Enter' && saveConversationEdit()}
+                    on:blur={saveConversationEdit}
+                    autofocus
+                  />
+                </div>
+              {:else}
+                <div class="conversation-info">
+                  <div class="conversation-title" on:dblclick={() => startEditConversation(conversation.id, conversation.name)}>
+                    {conversation.name}
+                  </div>
+                  <div class="conversation-preview">
+                    {getConversationPreview(conversation)}
+                  </div>
+                  <div class="conversation-date">
+                    {formatDate(conversation.updatedAt)}
+                  </div>
+                </div>
+              {/if}
+            </div>
+          {/each}
+        {/if}
       </div>
     </div>
-  {/if}
-  
-  <div class="chat-container" >
-    {#if $messages.length === 0}
-      <div class="welcome-message">
-        <p>Welcome to the AI Chat Terminal!</p>
-        <p>Choose your AI provider and start chatting.</p>
-      </div>
-    {:else}
-      {#each $messages as message, i (i)}
-        <div class="message {message.role}">
-          <div class="message-header">
-            <span class="message-role">{message.role === 'assistant' ? $currentProvider : message.role}</span>
-            <span class="message-time">{formatTime(message.timestamp)}</span>
-          </div>
-          <div class="message-content">
-            {@html processContent(message.content)}
+    
+    <div class="chat-content">
+      <div class="terminal-header">
+        <div class="header-left">
+          <button class="toggle-sidebar-btn" on:click={toggleSidebar}>
+            {isSidebarOpen ? '◀' : '▶'}
+          </button>
+          <div class="terminal-title">
+            {activeConversation ? activeConversation.name : 'Start a new chat'} - {$currentProvider.toUpperCase()}
           </div>
         </div>
-      {/each}
-    {/if}
-    
-    {#if isLoading}
-      <div class="loading-indicator">
-        <span class="dot"></span>
-        <span class="dot"></span>
-        <span class="dot"></span>
+        <div class="terminal-controls">
+          <button class="terminal-btn" on:click={toggleSettings}>⚙️</button>
+          <button class="terminal-btn" on:click={deleteCurrentChat}>🗑️</button>
+        </div>
       </div>
-    {/if}
-  </div>
-  
-  <div class="input-container">
-    <textarea 
-      bind:value={input} 
-      on:keydown={handleKeydown} 
-      placeholder="Type your message here... (Shift+Enter for new line)"
-      rows="1"
-      disabled={isLoading}
-    ></textarea>
-    <button class="send-btn" on:click={handleSubmit} disabled={isLoading || !input.trim()}>
-      Send
-    </button>
+      
+      {#if isSettingsOpen}
+        <div class="settings-panel" transition:fade={{ duration: 150 }}>
+          <h3>API Settings</h3>
+          <div class="provider-selector">
+            {#each Object.keys($apiKeys) as provider}
+              <button 
+                class="provider-btn {$currentProvider === provider ? 'active' : ''}" 
+                on:click={() => changeProvider(provider as Provider)}
+              >
+                {provider}
+              </button>
+            {/each}
+          </div>
+          
+          <div class="api-key-inputs">
+            {#each Object.entries($apiKeys) as [provider, key]}
+              <div class="api-key-input">
+                <label for="{provider}-key">{provider} API Key:</label>
+                <input 
+                  type="password" 
+                  id="{provider}-key" 
+                  value={key} 
+                  on:change={(e) => handleInputChange(e, provider as Provider)}
+                  placeholder="Enter your API key"
+                />
+              </div>
+            {/each}
+          </div>
+        </div>
+      {/if}
+      
+      <div class="chat-container" bind:this={chatContainer}>
+        {#if !activeConversation || activeConversation.messages.length === 0}
+          <div class="welcome-message">
+            <p>Welcome to the AI Chat Terminal!</p>
+            <p>Choose your AI provider and start chatting.</p>
+          </div>
+        {:else}
+          {#each activeConversation.messages as message, i (i)}
+            <div class="message {message.role}">
+              <div class="message-header">
+                <span class="message-role">{message.role === 'assistant' ? $currentProvider : message.role}</span>
+                <span class="message-time">{formatTime(message.timestamp)}</span>
+              </div>
+              <div class="message-content">
+                {@html processContent(message.content)}
+              </div>
+            </div>
+          {/each}
+        {/if}
+        
+        {#if isLoading}
+          <div class="loading-indicator">
+            <span class="dot"></span>
+            <span class="dot"></span>
+            <span class="dot"></span>
+          </div>
+        {/if}
+      </div>
+      
+      <div class="input-container">
+        <textarea 
+          bind:value={input} 
+          on:keydown={handleKeydown} 
+          placeholder="Type your message here... (Shift+Enter for new line)"
+          rows="1"
+          disabled={isLoading}
+        ></textarea>
+        <button class="send-btn" on:click={handleSubmit} disabled={isLoading || !input.trim()}>
+          Send
+        </button>
+      </div>
+    </div>
   </div>
 </div>
 
 <style>
-  .terminal {
+  .chat-terminal {
     display: flex;
     flex-direction: column;
     color: #f0f0f0;
@@ -253,6 +397,165 @@
     width: 100%;
     overflow: hidden;
     font-family: 'Fira Code', 'Cascadia Code', 'Consolas', monospace;
+  }
+  
+  .chat-terminal.standalone {
+    height: 100vh;
+    border-radius: 0;
+  }
+  
+  .terminal-layout {
+    display: flex;
+    height: 100%;
+    width: 100%;
+  }
+  
+  .terminal-layout.with-sidebar .chat-content {
+    width: calc(100% - 280px);
+  }
+  
+  .terminal-layout.sidebar-collapsed .chat-content {
+    width: 100%;
+  }
+  
+  .sidebar {
+    width: 280px;
+    background-color: #1e1e1e;
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    transition: width 0.2s ease;
+  }
+  
+  .sidebar.hidden {
+    width: 0;
+    overflow: hidden;
+  }
+  
+  .sidebar-header {
+    padding: 15px;
+    border-bottom: 1px solid #333;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  
+  .sidebar-header h3 {
+    margin: 0;
+    font-size: 16px;
+    color: #fff;
+  }
+  
+  .new-chat-btn {
+    background-color: #333;
+    border: none;
+    color: #fff;
+    border-radius: 4px;
+    padding: 5px 10px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    border: 1px solid #ddd;
+  }
+  
+  .new-chat-btn:hover {
+    background-color: #444;
+  }
+  
+  .conversations-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 10px;
+  }
+  
+  .conversation-item {
+    padding: 10px;
+    border-radius: 4px;
+    margin-bottom: 8px;
+    cursor: pointer;
+    transition: background-color 0.2s;
+    border: 1px solid #ddd;
+  }
+  
+  .conversation-item:hover {
+    background-color: #2a2a2a;
+  }
+  
+  .conversation-item.active {
+    background-color: #333;
+  }
+  
+  .conversation-info {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+  }
+  
+  .conversation-title {
+    font-weight: bold;
+    color: #fff;
+  }
+  
+  .conversation-preview {
+    font-size: 12px;
+    color: #aaa;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  
+  .conversation-date {
+    font-size: 10px;
+    color: #666;
+  }
+  
+  .edit-title-container {
+    width: 100%;
+  }
+  
+  .edit-title-container input {
+    width: 100%;
+    background-color: #333;
+    border: 1px solid #555;
+    color: #fff;
+    padding: 5px;
+    font-size: 13px;
+    border-radius: 3px;
+  }
+  
+  .empty-state {
+    text-align: center;
+    padding: 30px 0;
+    color: #666;
+    font-style: italic;
+  }
+  
+  .chat-content {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+  }
+  
+  .header-left {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  
+  .toggle-sidebar-btn {
+    background: none;
+    border: none;
+    color: #ccc;
+    font-size: 14px;
+    cursor: pointer;
+    padding: 4px 8px;
+    border-radius: 4px;
+  }
+  
+  .toggle-sidebar-btn:hover {
+    background-color: #333;
   }
 
   .terminal-header {
@@ -457,7 +760,7 @@
   textarea {
     flex: 1;
     background-color: #2a2a2a;
-    border: 1px solid #ddd;
+    border: 1px solid #444;
     color: #fff;
     padding: 8px 8px;
     font-family: inherit;
