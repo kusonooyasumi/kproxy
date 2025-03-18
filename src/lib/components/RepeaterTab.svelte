@@ -4,13 +4,8 @@
   import CodeMirror from "svelte-codemirror-editor";
   import { oneDark } from "@codemirror/theme-one-dark";
 
-  let value = "";
-
-
   // Props that can be passed to the component
   export let standalone = false; // Whether the component is running in standalone mode (new window)
-  
-  const dispatch = createEventDispatcher();
   
   // Check if running in Electron
   const isElectron = typeof window !== 'undefined' && window.electronAPI !== undefined;
@@ -25,50 +20,10 @@
   let responseContent = '';
   let urlInput = 'https://target.com'; // Default URL
   
-    // Props
-    export let initialValue: string = '';
-  export let placeholder: string = '';
-  export let height: string = '200px';
-  export let minWidth: string = '500px';
   
-  let textarea: HTMLTextAreaElement;
-  let lineNumbers: HTMLDivElement;
-  let lines: number = 1;
-  
-  // Update line numbers when content changes
-  function updateLineNumbers(value: string) {
-    lines = value.split('\n').length;
-  }
-  
-  // Handle keydown events for tab support
-  function handleKeydown(event: KeyboardEvent) {
-    if (event.key === 'Tab') {
-      event.preventDefault();
-      
-      const start = textarea.selectionStart;
-      const end = textarea.selectionEnd;
-      
-      textarea.value = textarea.value.substring(0, start) + '\t' + textarea.value.substring(end);
-      
-      // Set cursor position after the inserted tab
-      textarea.selectionStart = textarea.selectionEnd = start + 1;
-      
-      // Make sure to update line numbers
-      updateLineNumbers(textarea.value);
-    }
-  }
-  
-  // Handle input events to update line numbers
-  function handleInput() {
-    updateLineNumbers(textarea.value);
-  }
   
   // Initialize with any initial value
   onMount(() => {
-    if (initialValue) {
-      textarea.value = initialValue;
-      updateLineNumbers(initialValue);
-    }
   });
   
   // Update URL input when selected request changes
@@ -446,83 +401,10 @@ ${request.responseBody}`;
 <style>
 
 .panel-buttons {
-    display: flex; /* Makes children (buttons) appear side by side */
-    gap: 10px; /* Optional: Adds some space between the buttons */
-  }
-
-  /* Modern Theme */
-  :global(.splitpanes.modern-theme .splitpanes__pane) {
-    background-color: transparent;
-  }
- 
-  :global(.splitpanes.modern-theme .splitpanes__splitter) {
-    background-color: #ccc;
-    position: relative;
-  }
- 
-  :global(.splitpanes.modern-theme .splitpanes__splitter:before) {
-    content: '';
-    position: absolute;
-    left: 0;
-    top: 0;
-    transition: opacity 0.4s;
-    background-color: #ff5252;
-    opacity: 0;
-    z-index: 1;
-  }
- 
-  :global(.splitpanes.modern-theme .splitpanes__splitter:hover:before) {
-    opacity: 1;
-  }
- 
-  :global(.splitpanes.modern-theme .splitpanes__splitter.splitpanes__splitter__active) {
-    z-index: 2; /* Fix an issue of overlap fighting with a near hovered splitter */
-  }
- 
-  :global(.modern-theme.splitpanes--vertical > .splitpanes__splitter:before) {
-    left: -3px;
-    right: -3px;
-    height: 100%;
-    cursor: col-resize;
-  }
- 
-  :global(.modern-theme.splitpanes--horizontal > .splitpanes__splitter:before) {
-    top: -3px;
-    bottom: -3px;
-    width: 100%;
-    cursor: row-resize;
-  }
- 
-  /* No Splitter Theme */
-  :global(.splitpanes.no-splitter .splitpanes__pane) {
-    background-color: transparent;
-  }
- 
-  :global(.splitpanes.no-splitter .splitpanes__splitter) {
-    background-color: transparent;
-    position: relative;
-  }
- 
-  :global(.no-splitter.splitpanes--horizontal > .splitpanes__splitter:before) {
-    width: 0.125rem;
-    pointer-events: none;
-    cursor: none;
-  }
- 
-  :global(.no-splitter.splitpanes--vertical > .splitpanes__splitter:before) {
-    height: 0.125rem;
-    pointer-events: none;
-    cursor: none;
-  }
-
-  .repeater-container {
     display: flex;
-    flex-direction: column;
-    height: 100%;
-    width: 100%;
-    background-color: transparent;
+    gap: 10px;
   }
-  
+
   .repeater-header {
     padding: 8px;
     display: flex;
@@ -662,30 +544,6 @@ ${request.responseBody}`;
     font-style: italic;
   }
   
-  .empty-panel-message {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    height: 100%;
-    color: #777;
-    font-style: italic;
-  }
-  
-  .request-response-panel {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    background-color: transparent;
-    border-radius: 7px;
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
-    overflow: hidden;
-  }
-  
-  .panel-tabs {
-    display: flex;
-    background-color: #1a1a1a;
-    border-bottom: 1px solid #333;
-  }
   
   .response-panel-tab {
     padding: 6px 15px;
@@ -709,11 +567,6 @@ ${request.responseBody}`;
     background-color: #1a1a1a;
     border-bottom: 1px solid #333;
   }
-
-  .panel-content {
-    flex: 1;
-    display: flex;
-  }
   
   .request-content {
     flex: 1;
@@ -735,20 +588,6 @@ ${request.responseBody}`;
     overflow: auto;
     background-color: #1a1a1a;
 
-  }
-  
-  .request-editor,
-  .response-editor {
-    width: 100%;
-    height: 100%;
-    background-color: #1a1a1a;
-    color: #fff;
-    border: none;
-    padding: 12px;
-    font-family: monospace;
-    font-size: 12px;
-    resize: none;
-    outline: none;
   }
   
   .loading-indicator {
@@ -775,48 +614,5 @@ ${request.responseBody}`;
   @keyframes spin {
     to { transform: rotate(360deg); }
   }
-
-  .editor {
-        display: inline-flex;
-        gap: 10px;
-        font-family: monospace;
-        line-height: 21px;
-        background: #282a3a;
-        border-radius: 2px;
-        padding: 20px 10px;
-        height: 200px;
-        overflow-y: auto;
-      }
-
-      .line-numbers {
-        width: 20px;
-        text-align: right;
-        
-      }
-
-      .line-numbers span {
-        counter-increment:  linenumber;
-      }
-
-      .line-numbers span::before {
-        content: counter(linenumber);
-        display: block;
-        color: #506882;
-      }
-
-      textarea {
-        
-        min-height: 1000px;
-        line-height: 21px;
-        overflow-y: hidden;
-        padding: 0;
-        border: 0;
-        background: #282a3a;
-        color: #FFF;
-        min-width: calc(100% - 10px);
-        outline: none;
-        
-      }
-
 
 </style>

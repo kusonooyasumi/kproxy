@@ -3,7 +3,6 @@
   import ProxySettings from './settings/ProxySettings.svelte';
   import GeneralSettings from './settings/GeneralSettings.svelte';
   import ScopeSettings from './settings/ScopeSettings.svelte';
-  import ThemeSettings from './settings/ThemeSettings.svelte';
   import ProjectSettings from './settings/ProjectSettings.svelte';
   
   // Props that can be passed to the component
@@ -72,7 +71,7 @@
 <style>
   .settings-container {
     display: flex;
-    height: 100%;
+    height: 97.3%;
     width: 100%;
     gap: 15px;
     background-color: transparent;

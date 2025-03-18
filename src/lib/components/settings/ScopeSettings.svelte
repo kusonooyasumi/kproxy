@@ -1,10 +1,13 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { writable } from 'svelte/store';
+  import { projectState } from '$lib/stores/project';
   
   // Check if running in Electron
   const isElectron = typeof window !== 'undefined' && window.electronAPI !== undefined;
-  
+  let activeProject: Project | null = null;
+
+
   // Define type for scope settings
   interface ScopeSettings {
     inScope: string[];
@@ -25,6 +28,26 @@
     newExclusionItem: ''
   };
   
+  let currentScope = {
+    inScope: scopeSettings.inScope,
+    outOfScope: scopeSettings.outOfScope
+  };
+
+  function updateProjectScopes() {
+    if (!activeProject) return;
+    
+    
+    if (activeProject) {
+      activeProject.scopes = {
+    inScope: scopeSettings.inScope,
+    outOfScope: scopeSettings.outOfScope
+  }
+      console.log(activeProject.scopes);
+      projectState.update(activeProject);
+      projectState.save();
+    }
+  }
+
   // Save scope settings to electron backend
   async function saveScopeSettings() {
     if (!isElectron || !window.electronAPI) {
@@ -38,7 +61,10 @@
         inScope: scopeSettings.inScope,
         outOfScope: scopeSettings.outOfScope
       });
+
+      updateProjectScopes();
       console.log('Scope settings saved');
+
     } catch (error) {
       console.error('Failed to save scope settings:', error);
     }
@@ -46,22 +72,31 @@
   
   // Load scope settings from backend
   async function loadScopeSettings() {
-    if (!isElectron || !window.electronAPI) {
-      console.log('Cannot load scope settings: Electron API not available');
-      return;
-    }
+  if (!isElectron || !window.electronAPI) {
+    console.log('Cannot load scope settings: Electron API not available');
+    return;
+  }
+  
+  try {
+    // This assumes you'll implement this method in your electron backend
+    const savedSettings = await window.electronAPI.scope.getSettings();
     
-    try {
-      // This assumes you'll implement this method in your electron backend
-      const savedSettings = await window.electronAPI.scope.getSettings();
+    if (activeProject !== null) {
+      // If activeProject exists, use its scope settings
+      scopeSettings.inScope = activeProject.scopes.inScope;
+      scopeSettings.outOfScope = activeProject.scopes.outOfScope;
+    } else {
+      // If activeProject is null, use the saved settings
       scopeSettings.inScope = savedSettings.inScope;
       scopeSettings.outOfScope = savedSettings.outOfScope;
-      updateScopeStore();
-      console.log('Scope settings loaded:', savedSettings);
-    } catch (error) {
-      console.error('Failed to load scope settings:', error);
     }
+    
+    updateScopeStore();
+    console.log('Scope settings loaded:', scopeSettings);
+  } catch (error) {
+    console.error('Failed to load scope settings:', error);
   }
+}
   
   // Add a new in-scope item
   function addInScopeItem() {
@@ -121,6 +156,24 @@
     console.log('ScopeSettings component mounted');
     // Load settings from backend if available
     loadScopeSettings();
+    // Subscribe to project state changes
+    const unsubscribe = projectState.subscribe(project => {
+      activeProject = project;
+    });
+    
+    // Listen for project state change events from the main process
+    if (window.electronAPI) {
+      window.electronAPI.receive('project-state-changed', (data) => {
+        if (data && data.project) {
+          projectState.initialize(data.project);
+        }
+      });
+    }
+    
+    // Return cleanup function
+    return () => {
+      unsubscribe();
+    };
   });
 </script>
 

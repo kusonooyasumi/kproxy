@@ -7,7 +7,6 @@
   
   const dispatch = createEventDispatcher();
   
-  // Check if running in Electron
   const isElectron = typeof window !== 'undefined' && window.electronAPI !== undefined;
   
 
@@ -304,30 +303,26 @@
     return args;
   }
 
-  // Function to run FFuf via IPC
   function runFFuf() {
-  const opts = $options; // Using the $ syntax for store value
+  const opts = $options; 
 
   isRunning.set(true);
   output.set('Starting FFuf scan...\n');
 
   const args = buildFFufCommand(opts);
   console.log('Running ffuf with args:', args);
-  
-  // Use the IPC API exposed by the preload script
+
   window.electron.invoke('run-ffuf', args).catch((error: string) => {
     output.update(current => current + `\nError: ${error}\n`);
     isRunning.set(false);
   });
 }
 
-  // Function to stop FFuf
   function stopFFuf() {
     window.electron.invoke('stop-ffuf');
     output.update(current => current + '\nStopping FFuf scan...\n');
   }
 
-  // Add a new header
   function addHeader() {
     options.update(opts => {
       opts.headers.push({ name: '', value: '' });
@@ -335,7 +330,6 @@
     });
   }
 
-  // Remove a header
   function removeHeader(index: number) {
     options.update(opts => {
       opts.headers.splice(index, 1);
@@ -343,7 +337,6 @@
     });
   }
 
-  // Add a new wordlist
   function addWordlist() {
     options.update(opts => {
       opts.wordlists.push({ path: '', keyword: 'FUZZ' });
@@ -351,7 +344,6 @@
     });
   }
 
-  // Remove a wordlist
   function removeWordlist(index: number) {
     options.update(opts => {
       opts.wordlists.splice(index, 1);
@@ -359,7 +351,6 @@
     });
   }
 
-  // Reset to default options
   function resetOptions() {
     options.set({ ...defaultOptions });
   }
@@ -388,19 +379,16 @@
     button.addEventListener('click', () => {
       const tabId = button.getAttribute('data-tab');
       
-      if (tabId) { // Add null check
-        // Remove active class from all buttons and contents
+      if (tabId) {
         tabButtons.forEach(btn => btn.classList.remove('active'));
         tabContents.forEach(content => content.classList.remove('active'));
         
-        // Add active class to current button and content
         button.classList.add('active');
         document.getElementById(tabId)?.classList.add('active');
       }
     });
   });
 
-  // Clean up event listeners when component is destroyed
   return () => {
     window.electron.removeAllListeners('ffuf-output');
     window.electron.removeAllListeners('ffuf-complete');
@@ -653,7 +641,8 @@
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
     margin: 0 auto;
     background-color: transparent;
-    overflow: hidden;
+    overflow: auto;
+    height: 97%;
   }
   
   .dropdown {
@@ -860,27 +849,10 @@
     border-radius: 4px;
     overflow-x: auto;
     white-space: pre-wrap;
-    height: 300px;
+    height: 234px;
     overflow-y: auto;
     font-family: monospace;
     border: 1px solid #ddd;
-  }
-  ::-webkit-scrollbar {
-    width: 8px;
-    height: 8px;
-  }
-
-  ::-webkit-scrollbar-track {
-    background: #1e1e1e;
-  }
-
-  ::-webkit-scrollbar-thumb {
-    background: #444;
-    border-radius: 4px;
-  }
-
-  ::-webkit-scrollbar-thumb:hover {
-    background: #555;
   }
 </style>
 

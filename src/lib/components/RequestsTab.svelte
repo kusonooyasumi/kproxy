@@ -2,7 +2,6 @@
   import { Pane, Splitpanes } from 'svelte-splitpanes';
   import { onMount, onDestroy, createEventDispatcher } from 'svelte';
   import { writable } from 'svelte/store';
-  import type { Writable } from 'svelte/store';
   import { tick } from 'svelte';
   import CodeMirror from "svelte-codemirror-editor";
   import { oneDark } from "@codemirror/theme-one-dark";
@@ -1228,15 +1227,6 @@ function toggleColumnVisibility(columnId: string, event?: Event) {
     align-items: center;
   }
   
-  .settings-group input[type="number"] {
-    width: 80px;
-    padding: 8px;
-    background-color: #2a2a2a;
-    border: 1px solid #444;
-    color: #fff;
-    border-radius: 8px;
-  }
-  
   /* Request Table */
   .table-container {
     flex: 1;
@@ -1675,8 +1665,8 @@ function toggleColumnVisibility(columnId: string, event?: Event) {
   }
 
 
-    /* Search filter styles */
-    .search-filter, .status-filter {
+  /* Search filter styles */
+  .search-filter, .status-filter {
     margin-bottom: 8px;
     padding: 5px;
   }

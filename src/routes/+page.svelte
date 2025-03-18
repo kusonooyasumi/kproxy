@@ -8,7 +8,6 @@
   import FuzzTab from '$lib/components/FuzzTab.svelte';
   import ChatTab from '$lib/components/ChatTab.svelte';
   import SitemapTab from '$lib/components/SitemapTab.svelte';
-  import { projectState } from '$lib/stores/project';
   
   // Check if we should display the startup dialog
   let showStartupDialog = false;
@@ -95,7 +94,7 @@
   // Function to handle the right-click event on sidebar items
   function handleContextMenu(event: MouseEvent, tabName: string) {
     // Only handle right-clicks for Repeater and Requests tabs
-    if (tabName !== 'Repeater' && tabName !== 'Requests' && tabName !== 'Fuzzer' && tabName !== 'Chat' && tabName !== 'Decode/Encode' && tabName !== 'Sitemap') return;
+    if (tabName !== 'Settings' && tabName !== 'Repeater' && tabName !== 'Requests' && tabName !== 'Fuzzer' && tabName !== 'Chat' && tabName !== 'Decode/Encode' && tabName !== 'Sitemap') return;
     
     // Prevent the default context menu
     event.preventDefault();
@@ -553,7 +552,7 @@
   }
   
   #sitemap-interface {
-    height: calc(100vh - 170px);
+    height: calc(100vh - 150px);
     display: none;
   }
 
@@ -571,18 +570,6 @@
     overflow: auto;
   }
   
-  .send-button {
-    width: 30px;
-    height: 30px;
-    background-color: #333;
-    border: none;
-    color: #ff5252;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border-radius: 8px;
-  }
 
   :global(.input-container) {
     background-color: #2a2a2a;
@@ -613,93 +600,6 @@
     border-radius: 8px;
   }
 
-  /* Request response section styles */
-  .request-response-section {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-    margin-top: 10px;
-  }
-  
-  .url-input-container {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    background-color: #2a2a2a;
-    border-radius: 8px;
-    padding: 10px;
-  }
-  
-  .url-input {
-    flex: 1;
-    background-color: #333;
-    border: none;
-    padding: 8px 12px;
-    color: #fff;
-    border-radius: 6px;
-  }
-  
-  .response-section {
-    background-color: #2a2a2a;
-    border-radius: 8px;
-    padding: 10px;
-  }
-  
-  .response-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 10px;
-  }
-  
-  .response-controls {
-    display: flex;
-    gap: 8px;
-  }
-  
-  .control-button {
-    background-color: #333;
-    border: none;
-    color: #fff;
-    width: 30px;
-    height: 30px;
-    border-radius: 6px;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
-  
-  .response-content {
-    background-color: #333;
-    border-radius: 6px;
-    padding: 10px;
-    min-height: 150px;
-    color: #ddd;
-  }
-  
-  .requests-table {
-    margin-bottom: 10px;
-    overflow: auto;
-  }
-  
-  .requests-table table {
-    width: 100%;
-    border-collapse: collapse;
-  }
-  
-  .requests-table th {
-    background-color: #2a2a2a;
-    text-align: left;
-    padding: 10px;
-    font-weight: normal;
-    color: #ddd;
-  }
-  
-  .requests-table td {
-    padding: 8px 10px;
-    border-bottom: 1px solid #333;
-  }
   
   /* Startup dialog styles */
   .startup-modal-overlay {

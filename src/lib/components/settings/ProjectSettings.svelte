@@ -5,6 +5,7 @@
   // Project state
   let activeProject: Project | null = null;
   let projectName = 'Untitled Project';
+  let editingName = false;
   let projectSaving = false;
   let projectError: string | null = null;
   
@@ -56,6 +57,35 @@
     }
   }
   
+  // Function to update project name
+  function updateProjectName() {
+    if (!activeProject) return;
+    
+    editingName = false;
+    
+    if (projectName.trim() === '') {
+      projectName = 'Untitled Project';
+    }
+    
+    if (projectName !== activeProject.name) {
+      activeProject.name = projectName;
+      projectState.update(activeProject);
+      saveProject();
+    }
+  }
+  
+  // Function to handle Enter key press when editing name
+  function handleKeyDown(event: KeyboardEvent) {
+    if (event.key === 'Enter') {
+      updateProjectName();
+    } else if (event.key === 'Escape') {
+      editingName = false;
+      if (activeProject) {
+        projectName = activeProject.name || 'Untitled Project';
+      }
+    }
+  }
+  
   // Initialize the component
   onMount(() => {
     // Subscribe to project state changes
@@ -90,11 +120,30 @@
       {#if activeProject}
         <div class="info-row">
           <span class="label">Name:</span>
-          <span class="value">{projectName}</span>
+          {#if editingName}
+            <div class="edit-name-container">
+              <input 
+                type="text" 
+                bind:value={projectName} 
+                on:blur={updateProjectName}
+                on:keydown={handleKeyDown}
+                class="name-input"
+                autofocus
+              />
+              <button class="save-name-btn" on:click={updateProjectName}>
+                Save
+              </button>
+            </div>
+          {:else}
+            <div class="editable-value">
+              <span class="value">{projectName}</span>
+              <button class="edit-btn" on:click={() => editingName = true}>
+                ✏️
+              </button>
+            </div>
+          {/if}
         </div>
         <div class="info-row">
-          <span class="label">Location:</span>
-          <span class="value">{activeProject.path || 'Unknown'}</span>
         </div>
       {:else}
         <p class="no-project">No active project</p>
@@ -196,6 +245,64 @@
     flex: 1;
     color: #fff;
     word-break: break-all;
+  }
+  
+  .editable-value {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  
+  .edit-btn {
+    background: none;
+    border: none;
+    color: #aaa;
+    cursor: pointer;
+    font-size: 14px;
+    padding: 2px 6px;
+    margin-left: 8px;
+    transition: color 0.2s;
+  }
+  
+  .edit-btn:hover {
+    color: #fff;
+  }
+  
+  .edit-name-container {
+    flex: 1;
+    display: flex;
+    gap: 8px;
+  }
+  
+  .name-input {
+    flex: 1;
+    background-color: #333;
+    border: 1px solid #555;
+    border-radius: 4px;
+    color: #fff;
+    padding: 6px 10px;
+    font-size: 14px;
+  }
+  
+  .name-input:focus {
+    outline: none;
+    border-color: #7289da;
+  }
+  
+  .save-name-btn {
+    background-color: #4c6ef5;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    padding: 6px 12px;
+    cursor: pointer;
+    font-size: 14px;
+    transition: background-color 0.2s;
+  }
+  
+  .save-name-btn:hover {
+    background-color: #3b5bdb;
   }
   
   .no-project {

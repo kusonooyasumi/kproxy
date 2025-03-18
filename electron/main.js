@@ -268,6 +268,9 @@ const createTabWindow = async (tabName) => {
     } else if (tabName === 'Sitemap') {
       // For Repeater tab, use the dedicated route
       url = 'http://localhost:5173/sitemap';
+    } else if (tabName === 'Settings') {
+      // For Repeater tab, use the dedicated route
+      url = 'http://localhost:5173/settings';
     } else {
       // For other tabs, use the main route
       url = 'http://localhost:5173';
