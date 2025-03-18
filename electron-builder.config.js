@@ -20,17 +20,9 @@ export default {
   ],
   
   // Configure build targets for each platform
-  mac: {
-    target: ["dmg"],
-    category: "public.app-category.utilities"
-  },
   win: {
     target: ["nsis"],
     artifactName: "${productName}-Setup-${version}.${ext}"
-  },
-  linux: {
-    target: ["AppImage", "deb"],
-    category: "Utility"
   },
   
   // Publish configuration (for auto-updates, if needed later)
