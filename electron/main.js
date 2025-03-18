@@ -121,6 +121,7 @@ const createStartupDialog = async () => {
       const mainIndex = path.join(__dirname, '../build/index.html');
       await startupDialogWindow.loadFile(mainIndex, { query: { 'startup': 'true' } });
       console.log('Loaded startup dialog from build files');
+      console.log(__dirname);
     } catch (loadErr) {
       console.error('Failed to load startup dialog completely:', loadErr);
       // If all else fails, just create the main window directly
