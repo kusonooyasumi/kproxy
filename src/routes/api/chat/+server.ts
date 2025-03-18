@@ -4,9 +4,10 @@ import type { RequestHandler } from '@sveltejs/kit';
 // Define interfaces for the request body
 interface ChatRequestBody {
   message: string;
-  provider: 'openai' | 'deepseek' | 'gemini' | 'anthropic';
+  provider: 'openai' | 'deepseek' | 'gemini' | 'anthropic' | 'axonbox';
   apiKey: string;
   history: ChatMessage[];
+  model?: string; // Optional model parameter
 }
 
 interface ChatMessage {
@@ -33,9 +34,16 @@ interface AnthropicMessage {
   content: string;
 }
 
+// Axonbox message format
+interface AxonboxMessage {
+  role: 'user' | 'assistant' | 'tool' | 'system';
+  content: string;
+  timestamp: string;
+}
+
 export const POST: RequestHandler = async ({ request }) => {
   try {
-    const { message, provider, apiKey, history } = await request.json() as ChatRequestBody;
+    const { message, provider, apiKey, history, model } = await request.json() as ChatRequestBody;
     
     if (!message || !provider || !apiKey) {
       return json({ error: 'Missing required parameters' }, { status: 400 });
@@ -45,16 +53,19 @@ export const POST: RequestHandler = async ({ request }) => {
     
     switch (provider) {
       case 'openai':
-        response = await callOpenAI(message, apiKey, history);
+        response = await callOpenAI(message, apiKey, history, model);
         break;
       case 'deepseek':
-        response = await callDeepseek(message, apiKey, history);
+        response = await callDeepseek(message, apiKey, history, model);
         break;
       case 'gemini':
-        response = await callGemini(message, apiKey, history);
+        response = await callGemini(message, apiKey, history, model);
         break;
       case 'anthropic':
-        response = await callAnthropic(message, apiKey, history);
+        response = await callAnthropic(message, apiKey, history, model);
+        break;
+      case 'axonbox':
+        response = await callAxonbox(message, apiKey, history, model);
         break;
       default:
         return json({ error: 'Invalid provider' }, { status: 400 });
@@ -67,7 +78,7 @@ export const POST: RequestHandler = async ({ request }) => {
   }
 };
 
-async function callOpenAI(message: string, apiKey: string, history: ChatMessage[]): Promise<string> {
+async function callOpenAI(message: string, apiKey: string, history: ChatMessage[], model: string = 'gpt-4o'): Promise<string> {
   const url = 'https://api.openai.com/v1/chat/completions';
   
   const messages: OpenAIMessage[] = formatHistoryForOpenAI(history);
@@ -80,7 +91,7 @@ async function callOpenAI(message: string, apiKey: string, history: ChatMessage[
       'Authorization': `Bearer ${apiKey}`
     },
     body: JSON.stringify({
-      model: 'gpt-4o',
+      model,
       messages,
       temperature: 0.7,
     })
@@ -95,7 +106,7 @@ async function callOpenAI(message: string, apiKey: string, history: ChatMessage[
   return data.choices[0].message.content;
 }
 
-async function callDeepseek(message: string, apiKey: string, history: ChatMessage[]): Promise<string> {
+async function callDeepseek(message: string, apiKey: string, history: ChatMessage[], model: string = 'deepseek-chat'): Promise<string> {
   const url = 'https://api.deepseek.com/v1/chat/completions';
   
   const messages: OpenAIMessage[] = formatHistoryForOpenAI(history); // Deepseek uses OpenAI-compatible format
@@ -108,7 +119,7 @@ async function callDeepseek(message: string, apiKey: string, history: ChatMessag
       'Authorization': `Bearer ${apiKey}`
     },
     body: JSON.stringify({
-      model: 'deepseek-chat',
+      model,
       messages,
       temperature: 0.7,
     })
@@ -123,8 +134,11 @@ async function callDeepseek(message: string, apiKey: string, history: ChatMessag
   return data.choices[0].message.content;
 }
 
-async function callGemini(message: string, apiKey: string, history: ChatMessage[]): Promise<string> {
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${apiKey}`;
+async function callGemini(message: string, apiKey: string, history: ChatMessage[], model: string = 'gemini-pro'): Promise<string> {
+  // Extract model name from the input (remove 'gemini-' prefix if present)
+  const modelName = model.startsWith('gemini-') ? model : `gemini-${model}`;
+  
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`;
   
   const contents: GeminiContent[] = formatHistoryForGemini(history);
   contents.push({
@@ -154,7 +168,7 @@ async function callGemini(message: string, apiKey: string, history: ChatMessage[
   return data.candidates[0].content.parts[0].text;
 }
 
-async function callAnthropic(message: string, apiKey: string, history: ChatMessage[]): Promise<string> {
+async function callAnthropic(message: string, apiKey: string, history: ChatMessage[], model: string = 'claude-3-sonnet-20240229'): Promise<string> {
   const url = 'https://api.anthropic.com/v1/messages';
   
   const messages: AnthropicMessage[] = formatHistoryForAnthropic(history);
@@ -167,7 +181,7 @@ async function callAnthropic(message: string, apiKey: string, history: ChatMessa
       'anthropic-version': '2023-06-01'
     },
     body: JSON.stringify({
-      model: 'claude-3-sonnet-20240229',
+      model,
       messages: [...messages, { role: 'user', content: message }],
       max_tokens: 4000,
       temperature: 0.7,
@@ -214,4 +228,48 @@ function formatHistoryForAnthropic(history: ChatMessage[]): AnthropicMessage[] {
       content: msg.content
     };
   });
+}
+
+async function callAxonbox(message: string, apiKey: string, history: ChatMessage[], model: string = 'axon-standard'): Promise<string> {
+  const url = 'https://api.axonbox.net/chat';
+  
+  const messages: AxonboxMessage[] = formatHistoryForAxonbox(history);
+  messages.push({ 
+    role: 'user', 
+    content: message,
+    timestamp: new Date().toISOString()
+  });
+  
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      token: apiKey, // Use the JWT token for auth
+      model: model,
+      messages: messages,
+      options: {
+        temperature: 0.7
+      }
+    })
+  });
+  
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(`Axonbox API error: ${error.message || 'Unknown error'}`);
+  }
+  
+  const data = await response.json();
+  return data.response || data.content || data.message || ''; // Handle different possible response formats
+}
+
+function formatHistoryForAxonbox(history: ChatMessage[]): AxonboxMessage[] {
+  if (!history || !history.length) return [];
+  
+  return history.map(msg => ({
+    role: msg.role,
+    content: msg.content,
+    timestamp: msg.timestamp ? new Date(msg.timestamp).toISOString() : new Date().toISOString()
+  }));
 }

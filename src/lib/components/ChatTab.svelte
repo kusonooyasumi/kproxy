@@ -9,7 +9,7 @@
   import { clickOutside } from '$lib/actions/clickOutside';
   
   // Import our stores
-  import { apiKeys, currentProvider, type Provider } from '$lib/stores/settings';
+  import { apiKeys, currentProvider, currentModel, modelConfigs, defaultModelConfigs, type Provider } from '$lib/stores/settings';
   import { chatStore, type Message, type Conversation } from '$lib/stores/chat';
   import { projectState } from '$lib/stores/project';
 
@@ -99,6 +99,7 @@
           message: userInput,
           provider: $currentProvider,
           apiKey: $apiKeys[$currentProvider],
+          model: $currentModel,
           history: history
         })
       });
@@ -188,6 +189,11 @@
   // Change the current provider
   function changeProvider(provider: Provider): void {
     currentProvider.set(provider);
+  }
+  
+  // Change the current model
+  function changeModel(newModel: string): void {
+    currentModel.set(newModel);
   }
 
   // Handle key press events
@@ -301,7 +307,7 @@
             {isSidebarOpen ? '◀' : '▶'}
           </button>
           <div class="terminal-title">
-            {activeConversation ? activeConversation.name : 'Start a new chat'} - {$currentProvider.toUpperCase()}
+            {activeConversation ? activeConversation.name : 'Start a new chat'} - {$currentProvider.toUpperCase()} ({$currentModel})
           </div>
         </div>
         <div class="terminal-controls">
@@ -322,6 +328,29 @@
                 {provider}
               </button>
             {/each}
+          </div>
+          
+          <div class="model-selector">
+            <label for="model-select">Model:</label>
+            <select 
+              id="model-select" 
+              bind:value={$currentModel}
+              on:change={(e) => {
+                const select = e.target as HTMLSelectElement;
+                changeModel(select.value);
+              }}
+            >
+              {#if $modelConfigs && $modelConfigs[$currentProvider]}
+                {#each $modelConfigs[$currentProvider].models as model}
+                  <option value={model}>{model}</option>
+                {/each}
+              {:else}
+                <!-- Fallback to default models if modelConfigs is missing -->
+                {#each defaultModelConfigs[$currentProvider].models as model}
+                  <option value={model}>{model}</option>
+                {/each}
+              {/if}
+            </select>
           </div>
           
           <div class="api-key-inputs">
@@ -624,6 +653,27 @@
   .provider-btn.active {
     color: #fff;
     border-color: #ff5252;
+  }
+  
+  .model-selector {
+    margin-bottom: 15px;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+  }
+  
+  .model-selector label {
+    font-size: 14px;
+    color: #aaa;
+  }
+  
+  .model-selector select {
+    background-color: #333;
+    border: 1px solid #555;
+    color: #fff;
+    padding: 8px 10px;
+    border-radius: 4px;
+    cursor: pointer;
   }
 
   .api-key-inputs {

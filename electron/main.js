@@ -154,17 +154,19 @@ const createWindow = async () => {
 
   // Always try to load from the dev server first when in development
   try {
-    // In development, load from local dev server
+    // In production or if dev server fails, load from built files    
+
+    const indexHtml = path.join(__dirname, '../build/index.html');
+    await mainWindow.loadFile(indexHtml);
+  } catch (e) {
+    // In development, load from local dev server    
+    console.error('Failed to load from prod build, falling back to dev server:', e);
     const serverUrl = 'http://localhost:5173';
     console.log('Attempting to load from dev server:', serverUrl);
     await mainWindow.loadURL(serverUrl);
+
     // Open the DevTools automatically in development mode
     mainWindow.webContents.openDevTools();
-  } catch (e) {
-    console.error('Failed to load from dev server, falling back to production build:', e);
-    // In production or if dev server fails, load from built files
-    const indexHtml = path.join(__dirname, '../build/index.html');
-    await mainWindow.loadFile(indexHtml);
   }
 
   // Emitted when the window is closed
@@ -234,8 +236,8 @@ const createTabWindow = async (tabName) => {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: false
-    }
-    // titleBarStyle: 'hidden'
+    },
+    titleBarStyle: 'hidden'
   });
   
   // Remove default menu for Requests window
@@ -251,30 +253,20 @@ const createTabWindow = async (tabName) => {
     // Determine the URL based on tab type
     let url;
     if (tabName === 'Requests') {
-      // For Requests tab, use the dedicated route
       url = 'http://localhost:5173/requests';
     } else if (tabName === 'Repeater') {
-      // For Repeater tab, use the dedicated route
       url = 'http://localhost:5173/repeater';
     } else if (tabName === 'Fuzzer') {
-      // For Repeater tab, use the dedicated route
       url = 'http://localhost:5173/fuzzer';
     } else if (tabName === 'Chat') {
-      // For Repeater tab, use the dedicated route
       url = 'http://localhost:5173/chat';
     } else if (tabName === 'Decode/Encode') {
-      // For Repeater tab, use the dedicated route
       url = 'http://localhost:5173/decode';
     } else if (tabName === 'Sitemap') {
-      // For Repeater tab, use the dedicated route
       url = 'http://localhost:5173/sitemap';
     } else if (tabName === 'Settings') {
-      // For Repeater tab, use the dedicated route
       url = 'http://localhost:5173/settings';
-    } else {
-      // For other tabs, use the main route
-      url = 'http://localhost:5173';
-    }
+    } else
     
     console.log(`Loading ${tabName} in new window from: ${url}`);
     await tabWindow.loadURL(url);
