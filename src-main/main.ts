@@ -71,7 +71,7 @@ app.on('ready', () => {
 function createWindow() {
 	// Create the browser window.
 	const mainWindow = new BrowserWindow({
-		icon: path.join(staticAssetsFolder, '/icon.png'),
+		icon: path.join(staticAssetsFolder, '/icon2.png'),
 		width: 900,
 		height: 700,
 		minWidth: 400,
@@ -110,7 +110,7 @@ const createStartupDialog = async () => {
   
   // Create a small dialog window
   startupDialogWindow = new BrowserWindow({
-    icon: path.join(staticAssetsFolder, '/icon.png'),
+    icon: path.join(staticAssetsFolder, '/icon2.png'),
     width: 500,
     height: 400,
     resizable: false,

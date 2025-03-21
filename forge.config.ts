@@ -34,7 +34,7 @@ const config: ForgeConfig = {
 	  new MakerDeb({
 			options: {
 				// Path to a single image that will act as icon for the application
-				icon: './static/icon.png',
+				icon: './static/icon2.png',
 			}
 		}),
 	],
@@ -72,7 +72,7 @@ const config: ForgeConfig = {
 			  owner: 'kusonooyasumi',
 			  name: 'kproxy'
 			},
-			prerelease: true
+			prerelease: false
 		  }
 		}
 	  ]

@@ -1,8 +1,8 @@
 {
-	"name": "my-new-app",
-	"productName": "my-new-app",
+	"name": "kproxy",
+	"productName": "kproxy",
 	"version": "1.0.0",
-	"description": "My Electron application description",
+	"description": "A web appication tool for modifying http requests",
 	"main": ".vite/main/main.js",
 	"type": "module",
 	"scripts": {
