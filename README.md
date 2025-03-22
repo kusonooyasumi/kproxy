@@ -8,6 +8,7 @@ A simple open-source web application testing tool built for capturing and modify
 - HTTP/HTTPS proxy to capture and display web requests
 - Certificate Authority (CA) generation for HTTPS interception
 - Scope Selection
+- Projects
 - Custom Headers for proxied requests
 - A fuzzing tab built around ffuf
 - Built in AI chat supporting all major providers
