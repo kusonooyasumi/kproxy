@@ -1,7 +1,7 @@
 # KProxy
 ![image](https://github.com/user-attachments/assets/022d9a59-1636-48ef-bc3e-a7596a8ddde8)
 
-A simple open-source web application testing tool built for capturing and modifying http/https requests.
+A web application testing tool built for capturing and modifying http/https requests.
 
 ## Features
 
