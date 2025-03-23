@@ -19,6 +19,8 @@ interface ProxyAPI {
   getScopeSettings: () => Promise<{ inScope: string[]; outOfScope: string[] }>;
   saveScopeSettings: (settings: { inScope: string[]; outOfScope: string[] }) => Promise<{ success: boolean }>;
   sendToRepeater: (request: any) => Promise<{ success: boolean; error?: string }>;
+  sendRepeaterRequests: (requests: any[]) => Promise<{ success: boolean; error?: string }>;
+  getRepeaterState: () => Promise<{ success: boolean; requests?: any[]; error?: string }>;
 }
 
 // Types for FFuf API
@@ -34,16 +36,30 @@ interface TabAPI {
   sendRequest: (request: any) => Promise<any>;
 }
 
-export type ExposeInRendererTypes = typeof exposeInRenderer;
-const exposeInRenderer = {
+// Define the type first, then implement it
+export interface ExposeInRendererTypes {
+  toggleDevTools: () => void;
+  setTitleBarColors: (bgColor: string, iconColor: string) => void;
+  receive: (channel: string, func: (...args: any[]) => void) => void;
+  send: (channel: string, ...args: any[]) => void;
+  openTabInNewWindow: (tabName: string) => void;
+  startWithoutProject: () => void;
+  sendStoreUpdate: (storeName: string, value: any) => Promise<any>;
+}
+
+const exposeInRenderer: ExposeInRendererTypes = {
 	toggleDevTools: () => ipcRenderer.send('toggleDevTools'),
 	setTitleBarColors: (bgColor: string, iconColor: string) => {
 		document.documentElement.style.background = bgColor;
 		ipcRenderer.send('setTitleBarColors', bgColor, iconColor);
 	},
-  // Helper function to receive messages from main process
+// Helper function to receive messages from main process
   receive: (channel: string, func: (...args: any[]) => void) => {
     ipcRenderer.on(channel, (_, ...args) => func(...args));
+  },
+  // Helper to send messages to main process
+  send: (channel: string, ...args: any[]) => {
+    ipcRenderer.send(channel, ...args);
   },
   // Helper to open tab in new window
   openTabInNewWindow: (tabName: string) => {
@@ -52,6 +68,10 @@ const exposeInRenderer = {
   // Helper for startup without project
   startWithoutProject: () => {
     ipcRenderer.send('start-without-project', {});
+  },
+  // Store synchronization
+  sendStoreUpdate: (storeName: string, value: any) => {
+    return ipcRenderer.invoke('store:update', storeName, value);
   }
 };
 
@@ -85,7 +105,9 @@ const proxyAPI: ProxyAPI = {
   clearRequests: () => ipcRenderer.invoke('proxy:clearRequests'),
   getScopeSettings: () => ipcRenderer.invoke('proxy:getScopeSettings'),
   saveScopeSettings: (settings) => ipcRenderer.invoke('proxy:saveScopeSettings', settings),
-  sendToRepeater: (request) => ipcRenderer.invoke('send-to-repeater', request)
+  sendToRepeater: (request) => ipcRenderer.invoke('send-to-repeater', request),
+  sendRepeaterRequests: (requests) => ipcRenderer.invoke('repeater-requests', requests),
+  getRepeaterState: () => ipcRenderer.invoke('get-repeater-state')
 };
 
 // Create the FFuf API methods

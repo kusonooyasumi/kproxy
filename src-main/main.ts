@@ -211,6 +211,20 @@ const createTabWindow = async (tabName: string) => {
       // In production, load from built files
       await tabWindow.loadURL(`app://-/${tabName}`);
     }
+    
+    // Wait for window to finish loading before sending store state
+    tabWindow.webContents.on('did-finish-load', () => {
+      console.log(`Sending initial store state to new ${tabName} window`);
+      
+      // Send each store to the new window
+      for (const [storeName, value] of Object.entries(storeState)) {
+        tabWindow.webContents.send('store-update', {
+          storeName,
+          value
+        });
+      }
+    });
+    
   } catch (e) {
     console.error(`Failed to load ${tabName} tab:`, e);
   }
@@ -301,6 +315,35 @@ app.on('before-quit', async (event) => {
 
 // In this file you can include the rest of your app's specific main process
 // code. You can also put them in separate files and import them here.
+
+// Store state that needs to be shared across windows
+const storeState: Record<string, any> = {
+  scope: { inScope: ['example.com', '*.example.org'], outOfScope: ['admin.example.com'] }
+};
+
+// Handler for store updates from renderer
+ipcMain.handle('store:update', async (event, storeName: string, value: any) => {
+  console.log(`Received store update for ${storeName}:`, value);
+  
+  // Update the store state
+  storeState[storeName] = value;
+  
+  // Broadcast the update to all windows except the sender
+  const sender = event.sender;
+  const allWindows = BrowserWindow.getAllWindows();
+  
+  allWindows.forEach(window => {
+    // Skip the sender window to avoid circular updates
+    if (window.webContents !== sender) {
+      window.webContents.send('store-update', {
+        storeName,
+        value
+      });
+    }
+  });
+  
+  return true;
+});
 
 ipcMain.on('toggleDevTools', (event) => event.sender.toggleDevTools());
 ipcMain.on('setTitleBarColors', (event, bgColor, iconColor) => {
@@ -603,6 +646,84 @@ function registerTabManagementHandlers() {
     } catch (error) {
       console.error('Error sending to repeater:', error);
       return { success: false, error: (error as Error).message };
+    }
+  });
+  
+  // Handle getting current repeater state
+  ipcMain.handle('get-repeater-state', async (event) => {
+    try {
+      console.log('Handling get-repeater-state request');
+      
+      // Get current repeater requests from project
+      const currentProject = projectModule.getCurrentProject();
+      const repeaterRequests = currentProject?.repeaterRequests || [];
+      
+      // Also request from main window if available
+      const allWindows = BrowserWindow.getAllWindows();
+      const mainWindow = allWindows.find(w => !Object.values(tabWindows).includes(w));
+      
+      if (mainWindow) {
+        mainWindow.webContents.send('request-repeater-state');
+      }
+      
+      // Return current known requests immediately
+      // The renderer will also receive any updates via the 'current-repeater-state' event
+      const sender = event.sender;
+      sender.send('current-repeater-state', repeaterRequests);
+      
+      return { success: true, requests: repeaterRequests };
+    } catch (error) {
+      console.error('Error getting repeater state:', error);
+      return { success: false, error: (error as Error).message };
+    }
+  });
+  
+  // Handle receiving current repeater state from a window
+  ipcMain.on('current-repeater-state-from-window', (event, requests) => {
+    try {
+      console.log('Received current repeater state from window, request count:', requests.length);
+      
+      // Get the source window
+      const sourceWindow = BrowserWindow.fromWebContents(event.sender);
+      
+      // Find all windows that should receive this state update
+      // This typically includes the standalone Repeater window if it exists
+      const targetsForRepeaterRequests: BrowserWindow[] = [];
+      
+      // Add the standalone Repeater window if it exists
+      if (tabWindows['Repeater']) {
+        targetsForRepeaterRequests.push(tabWindows['Repeater']);
+      }
+      
+      // Send to all targets except the source window
+      targetsForRepeaterRequests.forEach(window => {
+        // Skip the source window to avoid circular updates
+        if (window !== sourceWindow && !window.isDestroyed()) {
+          window.webContents.send('current-repeater-state', requests);
+        }
+      });
+      
+      // Also update the project data for persistence
+      if (requests.length > 0 && projectModule.getCurrentProject()) {
+        projectModule.updateProject({
+          repeaterRequests: requests
+        });
+      }
+      
+      // Send response back to source window
+      event.sender.send('get-repeater-state-response', { 
+        success: true,
+        message: `Repeater state forwarded to ${targetsForRepeaterRequests.length} windows`
+      });
+      
+    } catch (error) {
+      console.error('Error handling repeater state from window:', error);
+      
+      // Send error response
+      event.sender.send('get-repeater-state-response', { 
+        success: false,
+        error: (error as Error).message
+      });
     }
   });
 

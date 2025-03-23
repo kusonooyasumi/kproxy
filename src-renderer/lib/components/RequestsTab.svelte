@@ -8,6 +8,7 @@
   
   // Import scopeStore from the centralized store
   import { scopeStore, type ScopeSettings } from '$lib/stores/scope';
+  import { addRepeaterRequest } from '$lib/stores/repeater';
   
   // Add search functionality
   let searchText = '';
@@ -477,6 +478,10 @@
     }
     
     try {
+      // First, add to the centralized store for any tabs in the current window
+      addRepeaterRequest(request);
+      
+      // Then, notify other windows via the proxy API
       const result = await window.electronAPI.proxy.sendToRepeater(request);
       if (result.success) {
         console.log('Request sent to repeater successfully');
@@ -545,6 +550,13 @@
     
     // Set up listeners for proxy events
     if (isElectron && window.electronAPI) {
+      
+      // Listen for proxy status updates
+      window.electronAPI.receive('proxy-status', (status: any) => {
+        console.log('Proxy status update:', status);
+        proxyStatus = { ...proxyStatus, ...status };
+      });
+
       // Listen for new requests
       window.electronAPI.receive('proxy-request', (requestData: CapturedRequest) => {
         console.log('New request:', requestData);

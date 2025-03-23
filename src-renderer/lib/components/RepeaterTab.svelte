@@ -1,8 +1,16 @@
 <script lang="ts">
-  import { onMount, onDestroy, createEventDispatcher } from 'svelte';
+  import { onMount, onDestroy } from 'svelte';
   import { Pane, Splitpanes } from 'svelte-splitpanes';
   import CodeMirror from "svelte-codemirror-editor";
   import { oneDark } from "@codemirror/theme-one-dark";
+  import { 
+    repeaterRequests, 
+    selectedRepeaterIndex, 
+    selectedRepeaterRequest,
+    addRepeaterRequest,
+    selectRepeaterRequest,
+    updateRepeaterRequest
+  } from '$lib/stores/repeater';
 
   // Props that can be passed to the component
   export let standalone = false; // Whether the component is running in standalone mode (new window)
@@ -10,48 +18,88 @@
   // Check if running in Electron
   const isElectron = typeof window !== 'undefined' && window.electronAPI !== undefined;
   
-  let requests: CapturedRequest[] = [];
-  let selectedRequest: CapturedRequest | null = null;
-  let selectedIndex = 0;
-  
   // Keep track of edited request content
   let requestContent = '';
   let isLoading = false;
   let responseContent = '';
   let urlInput = 'https://target.com'; // Default URL
-  
-  
+  let searchQuery = '';
   
   // Initialize with any initial value
   onMount(() => {
+    console.log(`RepeaterTab mounted, standalone: ${standalone}`);
+    console.log($repeaterRequests);
+    
+    // Hide parent sidebar and tabs if in standalone mode
+    if (standalone) {
+      
+      // If we're in standalone mode, we want to fetch the latest requests
+      if (isElectron && window.electronAPI) {
+        console.log('Standalone repeater tab mounted, requesting latest requests from main...');
+        
+        // Request the latest repeater requests from main process
+        // We'll use a different IPC channel to request the current repeater state
+        window.electronAPI.receive('current-repeater-state', (currentRequests: any[]) => {
+          console.log('Received current repeater state:', currentRequests);
+          
+          // Add each request to the repeater store
+          if (currentRequests && currentRequests.length > 0) {
+            currentRequests.forEach(request => {
+              addRepeaterRequest(request);
+            });
+          }
+        });
+        
+        // Request the current state from main process
+        // @ts-ignore - TS doesn't recognize this function that was added to the API
+        window.electronAPI.proxy.getRepeaterState();
+      }
+    }
+    
+    // Set up listeners for requests sent to repeater
+    if (isElectron && window.electronAPI) {
+      // Listen for requests sent to repeater
+      window.electronAPI.receive('send-to-repeater', (request: CapturedRequest) => {
+        console.log('Received request in repeater:', request);
+        // We need to cast or convert the CapturedRequest to RepeaterRequest
+        // The addRepeaterRequest function will add the repeaterId
+        addRepeaterRequest(request as any);
+      });
+    }
   });
   
   // Update URL input when selected request changes
-  $: if (selectedRequest) {
-    urlInput = `${selectedRequest.protocol}://${selectedRequest.host}${selectedRequest.path}`;
+  $: if ($selectedRepeaterRequest) {
+    urlInput = `${$selectedRepeaterRequest.protocol}://${$selectedRepeaterRequest.host}${$selectedRepeaterRequest.path}`;
   } else if (!urlInput) {
     urlInput = 'https://target.com';
   }
   
   // Handle URL input change to update selected request
   function handleUrlChange() {
-    if (!selectedRequest) return;
+    if (!$selectedRepeaterRequest) return;
     
     try {
       // Parse the URL to extract protocol, host, and path
       const parsedUrl = new URL(urlInput);
       
       // Update the selected request
-      selectedRequest.protocol = parsedUrl.protocol.replace(':', '') as 'http' | 'https';
-      selectedRequest.host = parsedUrl.host;
-      selectedRequest.path = parsedUrl.pathname + parsedUrl.search;
+      const updatedRequest = {
+        ...$selectedRepeaterRequest,
+        protocol: parsedUrl.protocol.replace(':', '') as 'http' | 'https',
+        host: parsedUrl.host,
+        path: parsedUrl.pathname + parsedUrl.search
+      };
       
-      // Update the request content
-      requestContent = formatRequestString(selectedRequest);
+      // Update the request in the store
+      updateRepeaterRequest(updatedRequest.repeaterId, updatedRequest);
+      
     } catch (error) {
       console.error('Error parsing URL:', error);
       // Invalid URL, revert to the original
-      urlInput = `${selectedRequest.protocol}://${selectedRequest.host}${selectedRequest.path}`;
+      if ($selectedRepeaterRequest) {
+        urlInput = `${$selectedRepeaterRequest.protocol}://${$selectedRepeaterRequest.host}${$selectedRepeaterRequest.path}`;
+      }
     }
   }
   
@@ -82,54 +130,31 @@ ${request.responseBody}`;
   }
   
   // Update the request content when a request is selected
-  $: if (selectedRequest) {
-    requestContent = formatRequestString(selectedRequest);
-    responseContent = formatResponseString(selectedRequest);
-  }
-  
-  // Handle receiving requests from the RequestsTab
-  function handleRequestReceived(request: CapturedRequest) {
-    console.log('Received request in repeater:', request);
-    
-    // Add to requests list (ensure no duplicates)
-    const existingIndex = requests.findIndex(r => r.id === request.id);
-    if (existingIndex === -1) {
-      // Clone the request to avoid reference issues
-      const newRequest = JSON.parse(JSON.stringify(request));
-      
-      // Add a unique identifier for the repeater request
-      newRequest.repeaterId = Date.now(); 
-      
-      requests = [...requests, newRequest];
-      
-      // Select the new request
-      selectedIndex = requests.length - 1;
-      selectedRequest = requests[selectedIndex];
-    }
+  $: if ($selectedRepeaterRequest) {
+    requestContent = formatRequestString($selectedRepeaterRequest);
+    responseContent = formatResponseString($selectedRepeaterRequest);
   }
   
   // Navigate to previous request
   function previousRequest() {
-    if (requests.length === 0) return;
+    if ($repeaterRequests.length === 0) return;
     
-    if (selectedIndex > 0) {
-      selectedIndex--;
-      selectedRequest = requests[selectedIndex];
+    if ($selectedRepeaterIndex > 0) {
+      selectRepeaterRequest($selectedRepeaterIndex - 1);
     }
   }
   
   // Navigate to next request
   function nextRequest() {
-    if (requests.length === 0) return;
+    if ($repeaterRequests.length === 0) return;
     
-    if (selectedIndex < requests.length - 1) {
-      selectedIndex++;
-      selectedRequest = requests[selectedIndex];
+    if ($selectedRepeaterIndex < $repeaterRequests.length - 1) {
+      selectRepeaterRequest($selectedRepeaterIndex + 1);
     }
   }
   
   // Parse the edited request content back into a request object
-  function parseRequestContent(content: string, originalRequest: CapturedRequest): CapturedRequest {
+  function parseRequestContent(content: string, originalRequest: typeof $selectedRepeaterRequest): typeof $selectedRepeaterRequest {
     try {
       // Make a deep copy of the original request
       const parsedRequest = JSON.parse(JSON.stringify(originalRequest));
@@ -194,10 +219,10 @@ ${request.responseBody}`;
   
   // Send the selected request
   async function sendRequest() {
-    if (!selectedRequest || !isElectron) return;
+    if (!$selectedRepeaterRequest || !isElectron) return;
     
     // Parse the edited content to update the request object
-    const updatedRequest = parseRequestContent(requestContent, selectedRequest);
+    const updatedRequest = parseRequestContent(requestContent, $selectedRepeaterRequest);
     
     console.log('Sending request from repeater:', updatedRequest);
     
@@ -218,14 +243,19 @@ ${request.responseBody}`;
         }
         
         // Update the request with the response data
-        selectedRequest.status = response.status;
-        selectedRequest.responseHeaders = response.headers;
-        selectedRequest.responseBody = response.body;
-        selectedRequest.responseLength = response.size || (response.body ? response.body.length : 0);
-        selectedRequest.responseTime = response.time;
+        const responseData = {
+          status: response.status,
+          responseHeaders: response.headers,
+          responseBody: response.body,
+          responseLength: response.size || (response.body ? response.body.length : 0),
+          responseTime: response.time
+        };
+        
+        // Update the request in the store
+        updateRepeaterRequest($selectedRepeaterRequest.repeaterId, responseData);
         
         // Update the response display
-        responseContent = formatResponseString(selectedRequest);
+        responseContent = formatResponseString({...$selectedRepeaterRequest, ...responseData});
       }
     } catch (error: unknown) {
       console.error('Error sending request:', error);
@@ -236,69 +266,20 @@ ${request.responseBody}`;
     }
   }
   
-  // Search for requests
-  function searchRequests(query: string) {
-    // TODO: Implement search functionality
-    console.log('Searching requests:', query);
+  // Search for requests based on the query
+  function filterRequests(requests: typeof $repeaterRequests, query: string): typeof $repeaterRequests {
+    if (!query.trim()) return requests;
+    
+    const lowercaseQuery = query.toLowerCase();
+    return requests.filter(request => 
+      request.host.toLowerCase().includes(lowercaseQuery) ||
+      request.path.toLowerCase().includes(lowercaseQuery) ||
+      request.method.toLowerCase().includes(lowercaseQuery)
+    );
   }
   
-  // Initialize the UI after component is mounted
-  onMount(() => {
-    console.log(`RepeaterTab mounted, standalone: ${standalone}`);
-    
-    // Hide parent sidebar and tabs if in standalone mode
-    if (standalone) {
-      // This is a workaround to hide the sidebar and tabs when in standalone mode
-      // These elements might be present from the parent layout
-      const sidebar = document.querySelector('.sidebar') as HTMLElement;
-      const tabs = document.querySelector('.tabs') as HTMLElement;
-      
-      if (sidebar) sidebar.style.display = 'none';
-      if (tabs) tabs.style.display = 'none';
-    }
-    
-    // Set up listeners for requests sent to repeater
-    if (isElectron && window.electronAPI) {
-      // Listen for requests sent to repeater
-      window.electronAPI.receive('send-to-repeater', (request: CapturedRequest) => {
-        handleRequestReceived(request);
-      });
-      
-      // Listen for request to send current repeater requests back to main process
-      window.electronAPI.receive('get-repeater-requests', () => {
-        console.log('Got request for repeater requests, sending:', requests);
-        
-        // Send the current repeater requests back to the main process
-        if (window.electronAPI) {
-          window.electronAPI.proxy.sendRepeaterRequests(requests)
-            .then((result: { success: boolean; error?: string }) => {
-              if (result.success) {
-                console.log('Successfully sent repeater requests to main process');
-              } else {
-                console.error('Failed to send repeater requests:', result.error);
-              }
-            })
-            .catch((err: Error) => {
-              console.error('Error sending repeater requests:', err);
-            });
-        }
-      });
-      
-      // Listen for project state changes
-      window.electronAPI.receive('project-state-changed', (data: { action: string; project: Project }) => {
-        if (data.action === 'new') {
-          // Clear existing requests when a new project is created
-          requests = [];
-          selectedRequest = null;
-          selectedIndex = 0;
-          console.log('Cleared repeater requests for new project');
-        } else if (data.action === 'open') {
-          // We don't need to do anything here as the requests will be sent via the 'send-to-repeater' event
-          console.log('Project opened, waiting for repeater requests');
-        }
-      });
-    }
-  });
+  // Computed filtered requests
+  $: filteredRequests = filterRequests($repeaterRequests, searchQuery);
   
   // Clean up event listeners
   onDestroy(() => {
@@ -320,7 +301,7 @@ ${request.responseBody}`;
     <button 
       class="send-button action-button" 
       on:click={sendRequest}
-      disabled={!selectedRequest}
+      disabled={!$selectedRepeaterRequest}
     >Send</button>
   </div>
 </div>
@@ -334,30 +315,29 @@ ${request.responseBody}`;
           <!-- Left panel (Request list) -->
           <div class="request-list-panel">
             <div class="panel-header">
-              Requests ({requests.length})
+              Requests ({$repeaterRequests.length})
             </div>
             <div class="search-container">
               <input 
                 type="text" 
                 class="search-input" 
                 placeholder="Search requests" 
-                on:input={(e) => searchRequests(e.currentTarget.value)}
+                bind:value={searchQuery}
               >
             </div>
             <div class="request-list">
-              {#if requests.length === 0}
+              {#if $repeaterRequests.length === 0}
                 <div class="empty-message">No requests yet. Send requests from the Requests tab.</div>
               {:else}
-                {#each requests as request, index}
+                {#each filteredRequests as request, index}
                   <div 
                     class="request-item" 
-                    class:selected={selectedIndex === index}
-                    on:click={() => {
-                      selectedIndex = index;
-                      selectedRequest = request;
-                    }}
+                    class:selected={$selectedRepeaterIndex === $repeaterRequests.indexOf(request)}
+                    on:click={() => selectRepeaterRequest($repeaterRequests.indexOf(request))}
                   >
-                    <div class="request-item-number">Request #{index + 1}</div>
+                    <div class="request-item-number">
+                      {request.method} {request.host}{request.path}
+                    </div>
                   </div>
                 {/each}
               {/if}
@@ -368,8 +348,7 @@ ${request.responseBody}`;
       <Pane>
         <div class="panel-tab">
           <span>Request</span>
-          <button class="send-button icon-button" title="Request issues">⚠</button>
-        </div>
+          </div>
         <div class="request-content">
         <CodeMirror theme={oneDark} bind:value={requestContent} lineWrapping={true}/>
       </div>
@@ -378,8 +357,16 @@ ${request.responseBody}`;
         <div class="response-panel-tab">
           <span>Response</span>
           <div class="panel-buttons">
-            <button class="send-button icon-button" title="Response issues">⚠</button>
-            <button class="send-button icon-button" title="Fullscreen">□</button>
+            <button 
+              class="nav-button" 
+              on:click={previousRequest}
+              disabled={$repeaterRequests.length === 0 || $selectedRepeaterIndex === 0}
+            >Prev</button>
+            <button 
+              class="nav-button" 
+              on:click={nextRequest}
+              disabled={$repeaterRequests.length === 0 || $selectedRepeaterIndex === $repeaterRequests.length - 1}
+            >Next</button>
           </div>
         </div>
         <div class="response-content">
@@ -424,7 +411,6 @@ ${request.responseBody}`;
     border: none;
     color: #fff;
     box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
-
     border-radius: 4px;
   }
   
@@ -471,6 +457,25 @@ ${request.responseBody}`;
   
   .action-button:hover {
     background-color: #ff5252;
+  }
+
+  .nav-button {
+    padding: 3px 8px;
+    background-color: #333;
+    border: none;
+    color: white;
+    cursor: pointer;
+    border-radius: 4px;
+    transition: background-color 0.2s ease;
+  }
+
+  .nav-button:hover:not(:disabled) {
+    background-color: #444;
+  }
+
+  .nav-button:disabled {
+    opacity: 0.5;
+    cursor: default;
   }
   
   .icon-button {
@@ -534,6 +539,9 @@ ${request.responseBody}`;
     font-weight: bold;
     color: #4caf50;
     font-size: 14px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
   
   .empty-message {
@@ -617,7 +625,6 @@ ${request.responseBody}`;
   /* Modern Theme */
   :global(.splitpanes.modern-theme .splitpanes__pane) {
     background-color: transparent;
-    
   }
  
   :global(.splitpanes.modern-theme .splitpanes__splitter) {
@@ -680,6 +687,4 @@ ${request.responseBody}`;
     pointer-events: none;
     cursor: none;
   }
-
-
 </style>

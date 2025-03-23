@@ -29,13 +29,14 @@
   :global(body) {
     background-color: #212121;
     color: #fff;
-    height: calc(100vh - 80px);
+    height: calc(100vh - 40px);
     margin: 0;
     padding: 0;
     overflow: hidden;
   }
   
   .standalone-container {
+    height: 91%;
     width: 100%;
     padding: 10px;
   }
