@@ -34,7 +34,6 @@ npm run start
 
 #package exe
 npm run package
-
 ```
 
 ## Quick Start Guide
