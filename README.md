@@ -15,13 +15,13 @@ A web application testing tool built for capturing and modifying http/https requ
 
 ### System Requirements/Compatibility
 
-Currently only available for Windows
+Available for Windows and Linux
 
 Fuzzing tab requires ffuf to be installed and available via PATH
 
 ### Installation Steps
 
-Install exe from releases and run to get started
+Install from releases to get started
 
 If you are interested in modifying the source code you can clone the repository and run these commands to get started
 
@@ -32,7 +32,10 @@ npm ci
 #run the application
 npm run start
 
-#package exe
+#package executable
+
+npm run svelte-build
+
 npm run package
 ```
 
