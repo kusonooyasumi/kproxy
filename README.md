@@ -35,7 +35,6 @@ npm run start
 #package executable
 
 npm run svelte-build
-
 npm run package
 ```
 
