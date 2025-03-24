@@ -5,8 +5,48 @@ import { Duplex } from 'node:stream';
 import { promisify } from 'node:util';
 import { EventEmitter } from 'node:events';
 import { URL } from 'node:url';
+import zlib from 'node:zlib';
 import { CertificateGenerator, generateServerCertificate } from './certificate';
 import httpProxy from 'http-proxy';
+
+// Promisify zlib functions
+const gunzipAsync = promisify(zlib.gunzip);
+const inflateAsync = promisify(zlib.inflate);
+const brotliDecompressAsync = promisify(zlib.brotliDecompress);
+
+/**
+ * Helper function to decompress response data based on Content-Encoding header
+ */
+async function decompressResponse(
+  data: Buffer, 
+  contentEncoding: string | undefined
+): Promise<Buffer> {
+  if (!contentEncoding) {
+    return data;
+  }
+
+  try {
+    const encoding = contentEncoding.toLowerCase();
+    
+    if (encoding.includes('br')) {
+      // Brotli decompression
+      return await brotliDecompressAsync(data);
+    } else if (encoding.includes('gzip')) {
+      // Gzip decompression
+      return await gunzipAsync(data);
+    } else if (encoding.includes('deflate')) {
+      // Deflate decompression
+      return await inflateAsync(data);
+    }
+    
+    // If no matching encoding or unsupported encoding, return as is
+    return data;
+  } catch (error) {
+    console.error(`Decompression error (${contentEncoding}):`, error);
+    // Return original data if decompression fails
+    return data;
+  }
+}
 
 // Interface for request details
 interface RequestDetails {
@@ -199,11 +239,16 @@ class ProxyServer extends EventEmitter {
         responseBody.push(chunk);
       });
       
-      proxyRes.on('end', () => {
+      proxyRes.on('end', async () => {
         try {
           const responseData = Buffer.concat(responseBody);
-          requestDetails.responseBody = responseData.toString();
-          requestDetails.responseLength = responseData.length;
+          
+          // Decompress the response if it's compressed
+          const contentEncoding = proxyRes.headers['content-encoding'];
+          const decompressedData = await decompressResponse(responseData, contentEncoding);
+          
+          requestDetails.responseBody = decompressedData.toString();
+          requestDetails.responseLength = responseData.length; // Keep original length for metrics
           requestDetails.responseTime = Date.now() - startTime;
           
           // Emit response event
@@ -436,12 +481,17 @@ class ProxyServer extends EventEmitter {
               responseBody.push(chunk);
             });
             
-            proxyRes.on('end', () => {
+            proxyRes.on('end', async () => {
               try {
                 if (responseBody.length > 0) {
                   const responseData = Buffer.concat(responseBody);
-                  secureRequestDetails.responseBody = responseData.toString();
-                  secureRequestDetails.responseLength = responseData.length;
+                  
+                  // Decompress the response if it's compressed
+                  const contentEncoding = proxyRes.headers['content-encoding'];
+                  const decompressedData = await decompressResponse(responseData, contentEncoding);
+                  
+                  secureRequestDetails.responseBody = decompressedData.toString();
+                  secureRequestDetails.responseLength = responseData.length; // Keep original length for metrics
                 }
                 secureRequestDetails.responseTime = Date.now() - secureStartTime;
                 
