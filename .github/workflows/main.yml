@@ -4,6 +4,12 @@ on:
   push:
     tags:
       - 'v*' # Trigger on version tags
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to publish'
+        required: true
+        default: '0.2.0'
 
 jobs:
   publish:
@@ -11,7 +17,7 @@ jobs:
     
     strategy:
       matrix:
-        os: [macos-latest, ubuntu-latest, windows-latest]
+        os: [ubuntu-latest, windows-latest]
     
     steps:
     - name: Check out Git repository
@@ -25,11 +31,7 @@ jobs:
     
     - name: Install Dependencies
       run: npm ci
-    
-    - name: Prepare for Publishing
-      run: npm run electron:prepare
-      # This assumes you have a script in package.json to prepare for publishing
-    
+
     - name: Publish Electron App
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
