@@ -1,11 +1,7 @@
 # KProxy
 ![image](https://github.com/user-attachments/assets/022d9a59-1636-48ef-bc3e-a7596a8ddde8)
 
-A web application security testing tool built for capturing and modifying http/https requests.
-
-## Overview
-
-KProxy is an open-source platform designed to help security professionals identify, exploit, and remediate security vulnerabilities in web applications. With an intuitive interface and essential web application testing capabilities, KProxy streamlines the security testing workflow from reconnaissance to reporting.
+A web application testing tool built for capturing and modifying http/https requests.
 
 ## Features
 
@@ -25,12 +21,27 @@ Fuzzing tab requires ffuf to be installed and available via PATH
 
 ### Installation Steps
 
+Install exe from releases and run to get started
+
+If you are interested in modifying the source code you can clone the repository and run these commands to get started
+
+```
+#install dependencies
+npm ci
+
+#run the application
+npm run start
+
+#package exe
+npm run package
+```
 
 ## Quick Start Guide
 
-1. Launch WebVulnScan and create a new project
-2. Configure your browser to use WebVulnScan's proxy (default: 127.0.0.1:8080)
-3. Browse your target application to populate requests in the application
+1. Launch KProxy and create a new project(or open without one)
+2. Start the proxy in Settings > Proxy Settings
+3. Configure your browser to use KProxy's proxy (default: 127.0.0.1:8080)
+4. Browse your target application to populate requests in the application
 
 ## Contributing/Security
 
