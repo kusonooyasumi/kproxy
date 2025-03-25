@@ -4,6 +4,8 @@ import type { Writable } from 'svelte/store';
 // Define types
 export interface RepeaterRequest extends CapturedRequest {
   repeaterId: number;
+  requestNumber: number;
+  name?: string;
 }
 
 // Create a writable store for repeater requests
@@ -26,8 +28,10 @@ export function addRepeaterRequest(request: CapturedRequest): void {
   // Clone the request to avoid reference issues
   const newRequest = JSON.parse(JSON.stringify(request));
   
-  // Add a unique identifier for the repeater request
+  // Add unique identifier and request number
   newRequest.repeaterId = Date.now();
+  newRequest.requestNumber = get(repeaterRequests).length + 1;
+  newRequest.name = `Request ${newRequest.requestNumber}`;
   
   repeaterRequests.update(requests => {
     // Check if request already exists (by id)

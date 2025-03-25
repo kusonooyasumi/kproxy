@@ -336,6 +336,20 @@ ${request.responseBody}`;
                     on:click={() => selectRepeaterRequest($repeaterRequests.indexOf(request))}
                   >
                     <div class="request-item-number">
+                      {request.requestNumber}. 
+                      {#if $selectedRepeaterIndex === $repeaterRequests.indexOf(request)}
+                        <input
+                          type="text"
+                          class="request-name-input"
+                          bind:value={request.name}
+                          on:blur={() => updateRepeaterRequest(request.repeaterId, { name: request.name })}
+                          on:keydown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
+                        >
+                      {:else}
+                        {request.name}
+                      {/if}
+                    </div>
+                    <div class="request-item-details">
                       {request.method} {request.host}{request.path}
                     </div>
                   </div>
@@ -542,6 +556,15 @@ ${request.responseBody}`;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+  }
+
+  .request-item-details {
+    font-size: 12px;
+    color: #777;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    margin-top: 2px;
   }
   
   .empty-message {

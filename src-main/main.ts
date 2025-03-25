@@ -5,6 +5,47 @@ import { stat } from 'node:fs/promises';
 import * as proxyModule from './proxy';
 import * as projectModule from './project';
 import * as ffufModule from './ffuf';
+import { promisify } from 'node:util';
+import zlib from 'node:zlib';
+
+// Promisify zlib functions
+const gunzipAsync = promisify(zlib.gunzip);
+const inflateAsync = promisify(zlib.inflate);
+const brotliDecompressAsync = promisify(zlib.brotliDecompress);
+
+/**
+ * Helper function to decompress response data based on Content-Encoding header
+ */
+async function decompressResponse(
+  data: Buffer, 
+  contentEncoding: string | undefined
+): Promise<Buffer> {
+  if (!contentEncoding) {
+    return data;
+  }
+
+  try {
+    const encoding = contentEncoding.toLowerCase();
+    
+    if (encoding.includes('br')) {
+      // Brotli decompression
+      return await brotliDecompressAsync(data);
+    } else if (encoding.includes('gzip')) {
+      // Gzip decompression
+      return await gunzipAsync(data);
+    } else if (encoding.includes('deflate')) {
+      // Deflate decompression
+      return await inflateAsync(data);
+    }
+    
+    // If no matching encoding or unsupported encoding, return as is
+    return data;
+  } catch (error) {
+    console.error(`Decompression error (${contentEncoding}):`, error);
+    // Return original data if decompression fails
+    return data;
+  }
+}
 
 // Handle creating/removing shortcuts on Windows when installing/uninstalling.
 import electronSquirrelStartup from 'electron-squirrel-startup';
@@ -759,26 +800,33 @@ function registerTabManagementHandlers() {
         const startTime = Date.now();
         
         const req = protocol.request(options, (res: any) => {
-          let responseData = '';
+          const chunks: Buffer[] = [];
           
           // Track response size
           let responseSize = 0;
           
-          // Collect response data
+          // Collect response data as buffers
           res.on('data', (chunk: Buffer) => {
-            responseData += chunk;
+            chunks.push(chunk);
             responseSize += chunk.length;
           });
           
           // Finalize response
-          res.on('end', () => {
+          res.on('end', async () => {
             const responseTime = Date.now() - startTime;
+            
+            // Combine all chunks into a single buffer
+            const responseBuffer = Buffer.concat(chunks);
+            
+            // Decompress response if needed
+            const contentEncoding = res.headers['content-encoding'];
+            const decompressedBody = await decompressResponse(responseBuffer, contentEncoding);
             
             // Create response object
             const response = {
               status: res.statusCode,
               headers: res.headers,
-              body: responseData,
+              body: decompressedBody.toString(),
               time: responseTime,
               size: responseSize
             };
