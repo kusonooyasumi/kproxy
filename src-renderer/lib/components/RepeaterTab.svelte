@@ -9,7 +9,10 @@
     selectedRepeaterRequest,
     addRepeaterRequest,
     selectRepeaterRequest,
-    updateRepeaterRequest
+    updateRepeaterRequest,
+    navigateRepeaterResponse,
+    addRepeaterResponse,
+    type RepeaterResponse
   } from '$lib/stores/repeater';
 
   // Props that can be passed to the component
@@ -116,41 +119,89 @@ ${request.body || ''}`;
   }
   
   // Format response as a string
-  function formatResponseString(request: CapturedRequest): string {
-    if (!request.responseBody) {
+  function formatResponseString(response: RepeaterResponse): string {
+    if (!response) {
       return 'No response data available. Click "Send" to execute the request.';
     }
     
-    return `HTTP/1.1 ${request.status}
-${Object.entries(request.responseHeaders || {})
+    let output = `HTTP/1.1 ${response.status}
+${Object.entries(response.responseHeaders || {})
   .map(([key, value]) => `${key}: ${value}`)
   .join('\n')}
 
-${request.responseBody}`;
+${response.responseBody}`;
+
+    // Add request data if available
+    if (response.requestData) {
+      output += `\n\n--- Request Data ---
+Method: ${response.requestData.method}
+URL: ${response.requestData.url}
+Headers:
+${Object.entries(response.requestData.headers || {})
+  .map(([key, value]) => `  ${key}: ${value}`)
+  .join('\n')}
+
+Body:
+${response.requestData.body || '(empty)'}`;
+    }
+
+    return output;
   }
   
-  // Update the request content when a request is selected
+  // Update response content when current response changes
   $: if ($selectedRepeaterRequest) {
+    const currentResponse = $selectedRepeaterRequest.responses[$selectedRepeaterRequest.currentResponseIndex];
+    responseContent = formatResponseString(currentResponse);
+  }
+  
+  // Navigate to previous response for current request
+  function previousResponse() {
+    if (!$selectedRepeaterRequest || $selectedRepeaterRequest.responses.length === 0) return;
+    navigateRepeaterResponse($selectedRepeaterRequest.repeaterId, 'prev');
+    updateRequestContent();
+  }
+  
+  // Navigate to next response for current request
+  function nextResponse() {
+    if (!$selectedRepeaterRequest || $selectedRepeaterRequest.responses.length === 0) return;
+    navigateRepeaterResponse($selectedRepeaterRequest.repeaterId, 'next');
+    updateRequestContent();
+  }
+
+  // Update request content based on current response's request data
+  function updateRequestContent() {
+    if (!$selectedRepeaterRequest) return;
+    const currentResponse = $selectedRepeaterRequest.responses[$selectedRepeaterRequest.currentResponseIndex];
+    
+    // If we have a response with request data, use that
+    if (currentResponse?.requestData) {
+      try {
+        const url = new URL(currentResponse.requestData.url);
+        requestContent = formatRequestString({
+          ...$selectedRepeaterRequest,
+          method: currentResponse.requestData.method,
+          protocol: url.protocol.replace(':', '') as 'http' | 'https',
+          host: url.host,
+          path: url.pathname + url.search,
+          headers: currentResponse.requestData.headers,
+          body: currentResponse.requestData.body
+        });
+        return;
+      } catch (error) {
+        console.error('Error parsing request URL:', error);
+      }
+    }
+    
+    // Fall back to the request's current state
     requestContent = formatRequestString($selectedRepeaterRequest);
-    responseContent = formatResponseString($selectedRepeaterRequest);
   }
-  
-  // Navigate to previous request
-  function previousRequest() {
-    if ($repeaterRequests.length === 0) return;
-    
-    if ($selectedRepeaterIndex > 0) {
-      selectRepeaterRequest($selectedRepeaterIndex - 1);
-    }
-  }
-  
-  // Navigate to next request
-  function nextRequest() {
-    if ($repeaterRequests.length === 0) return;
-    
-    if ($selectedRepeaterIndex < $repeaterRequests.length - 1) {
-      selectRepeaterRequest($selectedRepeaterIndex + 1);
-    }
+
+  // Update request content when:
+  // - Selected request changes
+  // - Response index changes
+  // - Request is modified
+  $: if ($selectedRepeaterRequest) {
+    updateRequestContent();
   }
   
   // Parse the edited request content back into a request object
@@ -224,6 +275,12 @@ ${request.responseBody}`;
     // Parse the edited content to update the request object
     const updatedRequest = parseRequestContent(requestContent, $selectedRepeaterRequest);
     
+    if (!updatedRequest) {
+      console.error('Failed to parse request content');
+      responseContent = 'Error: Failed to parse request content';
+      return;
+    }
+    
     console.log('Sending request from repeater:', updatedRequest);
     
     // Set loading state
@@ -231,6 +288,9 @@ ${request.responseBody}`;
     responseContent = 'Loading...';
     
     try {
+      // Update the store with the modified request first
+      updateRepeaterRequest($selectedRepeaterRequest.repeaterId, updatedRequest);
+      
       // Clone the request to avoid reference issues
       const requestToSend = JSON.parse(JSON.stringify(updatedRequest));
       
@@ -242,20 +302,21 @@ ${request.responseBody}`;
           throw new Error(response.error);
         }
         
-        // Update the request with the response data
-        const responseData = {
+        // Add the response to the request's history along with the request data
+        addRepeaterResponse($selectedRepeaterRequest.repeaterId, {
           status: response.status,
           responseHeaders: response.headers,
           responseBody: response.body,
           responseLength: response.size || (response.body ? response.body.length : 0),
-          responseTime: response.time
-        };
-        
-        // Update the request in the store
-        updateRepeaterRequest($selectedRepeaterRequest.repeaterId, responseData);
-        
-        // Update the response display
-        responseContent = formatResponseString({...$selectedRepeaterRequest, ...responseData});
+          responseTime: response.time,
+          requestData: {
+            method: requestToSend.method,
+            url: `${requestToSend.protocol}://${requestToSend.host}${requestToSend.path}`,
+            headers: requestToSend.headers,
+            body: requestToSend.body,
+            timestamp: new Date().toISOString()
+          }
+        });
       }
     } catch (error: unknown) {
       console.error('Error sending request:', error);
@@ -371,16 +432,19 @@ ${request.responseBody}`;
         <div class="response-panel-tab">
           <span>Response</span>
           <div class="panel-buttons">
-            <button 
-              class="nav-button" 
-              on:click={previousRequest}
-              disabled={$repeaterRequests.length === 0 || $selectedRepeaterIndex === 0}
-            >Prev</button>
-            <button 
-              class="nav-button" 
-              on:click={nextRequest}
-              disabled={$repeaterRequests.length === 0 || $selectedRepeaterIndex === $repeaterRequests.length - 1}
-            >Next</button>
+          <button 
+            class="nav-button" 
+            on:click={previousResponse}
+            disabled={!$selectedRepeaterRequest || $selectedRepeaterRequest.responses.length === 0 || $selectedRepeaterRequest.currentResponseIndex === 0}
+          >Prev</button>
+          <span class="response-position">
+            {$selectedRepeaterRequest?.responses.length ? `${$selectedRepeaterRequest.currentResponseIndex + 1}/${$selectedRepeaterRequest.responses.length}` : '0/0'}
+          </span>
+          <button 
+            class="nav-button" 
+            on:click={nextResponse}
+            disabled={!$selectedRepeaterRequest || $selectedRepeaterRequest.responses.length === 0 || $selectedRepeaterRequest.currentResponseIndex === $selectedRepeaterRequest.responses.length - 1}
+          >Next</button>
           </div>
         </div>
         <div class="response-content">

@@ -2,10 +2,28 @@ import { writable, derived, get } from 'svelte/store';
 import type { Writable } from 'svelte/store';
 
 // Define types
+export interface RepeaterResponse {
+  status: number;
+  responseHeaders: Record<string, string>;
+  responseBody: string;
+  responseLength: number;
+  responseTime: number;
+  timestamp: number;
+  requestData?: {
+    method: string;
+    url: string;
+    headers: Record<string, string>;
+    body: string;
+    timestamp: string;
+  };
+}
+
 export interface RepeaterRequest extends CapturedRequest {
   repeaterId: number;
   requestNumber: number;
   name?: string;
+  responses: RepeaterResponse[];
+  currentResponseIndex: number;
 }
 
 // Create a writable store for repeater requests
@@ -32,6 +50,8 @@ export function addRepeaterRequest(request: CapturedRequest): void {
   newRequest.repeaterId = Date.now();
   newRequest.requestNumber = get(repeaterRequests).length + 1;
   newRequest.name = `Request ${newRequest.requestNumber}`;
+  newRequest.responses = [];
+  newRequest.currentResponseIndex = -1;
   
   repeaterRequests.update(requests => {
     // Check if request already exists (by id)
@@ -67,6 +87,62 @@ export function updateRepeaterRequest(
     
     const updatedRequests = [...requests];
     updatedRequests[index] = { ...updatedRequests[index], ...updates };
+    return updatedRequests;
+  });
+}
+
+// Function to add a new response to a request
+export function addRepeaterResponse(
+  repeaterId: number,
+  response: Omit<RepeaterResponse, 'timestamp'>
+): void {
+  repeaterRequests.update(requests => {
+    const index = requests.findIndex(r => r.repeaterId === repeaterId);
+    if (index === -1) return requests;
+    
+    const newResponse = {
+      ...response,
+      timestamp: Date.now()
+    };
+    
+    const updatedRequests = [...requests];
+    updatedRequests[index] = {
+      ...updatedRequests[index],
+      responses: [...updatedRequests[index].responses, newResponse],
+      currentResponseIndex: updatedRequests[index].responses.length
+    };
+    
+    return updatedRequests;
+  });
+}
+
+// Function to navigate responses for a request
+export function navigateRepeaterResponse(
+  repeaterId: number,
+  direction: 'prev' | 'next'
+): void {
+  repeaterRequests.update(requests => {
+    const index = requests.findIndex(r => r.repeaterId === repeaterId);
+    if (index === -1) return requests;
+    
+    const request = requests[index];
+    if (request.responses.length === 0) return requests;
+    
+    let newIndex = request.currentResponseIndex;
+    if (direction === 'prev' && request.currentResponseIndex > 0) {
+      newIndex--;
+    } else if (direction === 'next' && request.currentResponseIndex < request.responses.length - 1) {
+      newIndex++;
+    } else {
+      return requests;
+    }
+    
+    const updatedRequests = [...requests];
+    updatedRequests[index] = {
+      ...updatedRequests[index],
+      currentResponseIndex: newIndex
+    };
+    
     return updatedRequests;
   });
 }
