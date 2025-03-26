@@ -9,6 +9,7 @@
   // Import scopeStore from the centralized store
   import { scopeStore, type ScopeSettings } from '$lib/stores/scope';
   import { addRepeaterRequest } from '$lib/stores/repeater';
+  import { projectState } from '$lib/stores/project';
   
   // Add search functionality
   let searchText = '';
@@ -523,14 +524,17 @@
       // Get existing requests
       requests = await window.electronAPI.proxy.getRequests();
       
-      // Load scope settings from backend
-      if (window.electronAPI.scope) {
-        try {
-          const savedScopeSettings = await window.electronAPI.scope.getSettings();
-          scopeStore.set(savedScopeSettings);
-          console.log('Loaded scope settings:', savedScopeSettings);
-        } catch (scopeError) {
-          console.error('Failed to load scope settings:', scopeError);
+      // Load scope settings from backend if scope API is available
+      if (window.electronAPI && typeof window.electronAPI === 'object' && 'scope' in window.electronAPI) {
+        const scopeAPI = (window.electronAPI as { scope?: { getSettings: () => Promise<ScopeSettings> } }).scope;
+        if (scopeAPI && typeof scopeAPI.getSettings === 'function') {
+          try {
+            const savedScopeSettings = await scopeAPI.getSettings();
+            scopeStore.set(savedScopeSettings);
+            console.log('Loaded scope settings:', savedScopeSettings);
+          } catch (scopeError) {
+            console.error('Failed to load scope settings:', scopeError);
+          }
         }
       }
       
@@ -564,6 +568,8 @@
         const existingIndex = requests.findIndex(r => r.id === requestData.id);
         if (existingIndex === -1) {
           requests = [requestData, ...requests];
+          // Save to project (just pass the array of requests)
+          projectState.addRequests([requestData]);
         }
       });
       
@@ -580,6 +586,9 @@
           if (selectedRequest && selectedRequest.id === responseData.id) {
             selectedRequest = responseData;
           }
+
+          // Update in project store (just pass the array of requests)
+          projectState.addRequests([responseData]);
         }
       });
       
@@ -907,73 +916,6 @@
     border-radius: 4px;
     height: 100%;
     border: 1px solid #ddd;
-  }
-
-  /* Modern Theme */
-  :global(.splitpanes.modern-theme .splitpanes__pane) {
-    background-color: transparent;
-    
-  }
- 
-  :global(.splitpanes.modern-theme .splitpanes__splitter) {
-    background-color: #ccc;
-    position: relative;
-  }
- 
-  :global(.splitpanes.modern-theme .splitpanes__splitter:before) {
-    content: '';
-    position: absolute;
-    left: 0;
-    top: 0;
-    transition: opacity 0.4s;
-    background-color: #ff5252;
-    opacity: 0;
-    z-index: 1;
-  }
- 
-  :global(.splitpanes.modern-theme .splitpanes__splitter:hover:before) {
-    opacity: 1;
-  }
- 
-  :global(.splitpanes.modern-theme .splitpanes__splitter.splitpanes__splitter__active) {
-    z-index: 2; /* Fix an issue of overlap fighting with a near hovered splitter */
-  }
- 
-  :global(.modern-theme.splitpanes--vertical > .splitpanes__splitter:before) {
-    left: -3px;
-    right: -3px;
-    height: 100%;
-    cursor: col-resize;
-  }
- 
-  :global(.modern-theme.splitpanes--horizontal > .splitpanes__splitter:before) {
-    top: -3px;
-    bottom: -3px;
-    width: 100%;
-    cursor: row-resize;
-  }
- 
-  /* No Splitter Theme */
-  :global(.splitpanes.no-splitter .splitpanes__pane) {
-    background-color: transparent;
-    border-radius: 4px;
-  }
- 
-  :global(.splitpanes.no-splitter .splitpanes__splitter) {
-    background-color: #ccc;
-    position: relative;
-  }
- 
-  :global(.no-splitter.splitpanes--horizontal > .splitpanes__splitter:before) {
-    width: 0.125rem;
-    pointer-events: none;
-    cursor: none;
-  }
- 
-  :global(.no-splitter.splitpanes--vertical > .splitpanes__splitter:before) {
-    height: 0.125rem;
-    pointer-events: none;
-    cursor: none;
   }
 
   .requests-container {

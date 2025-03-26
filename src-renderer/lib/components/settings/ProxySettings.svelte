@@ -11,10 +11,16 @@
     certificatePath: '' 
   };
   let isStopButtonDisabled = false;
-  let proxySettings: { port: number; autoStart: boolean; customHeaders?: Record<string, string> } = { 
-    port: 8080, 
-    autoStart: false, 
-    customHeaders: {} 
+  let proxySettings: {
+    port: number;
+    autoStart: boolean;
+    saveOnlyInScope: boolean;
+    customHeaders?: Record<string, string>;
+  } = {
+    port: 8080,
+    autoStart: false,
+    saveOnlyInScope: false,
+    customHeaders: {}
   };
   
   // Custom headers state
@@ -38,7 +44,10 @@
     }
     
     try {
-      proxyStatus = await window.electronAPI.proxy.start({ port: proxySettings.port });
+      proxyStatus = await window.electronAPI.proxy.start({
+        port: proxySettings.port,
+        saveOnlyInScope: proxySettings.saveOnlyInScope
+      });
       console.log('Proxy started:', proxyStatus);
     } catch (error) {
       console.error('Failed to start proxy:', error);
@@ -111,7 +120,12 @@
     if (!isElectron || !window.electronAPI?.proxy) return;
     
     try {
-      const updatedSettings = await window.electronAPI.proxy.updateSettings(proxySettings);
+      const updatedSettings = await window.electronAPI.proxy.updateSettings({
+        port: proxySettings.port,
+        autoStart: proxySettings.autoStart,
+        saveOnlyInScope: proxySettings.saveOnlyInScope,
+        customHeaders: proxySettings.customHeaders
+      });
       proxySettings = updatedSettings;
       console.log('Proxy settings updated:', proxySettings);
     } catch (error) {
@@ -258,6 +272,15 @@
             on:change={updateProxySettings}
           />
           Auto-start proxy
+        </label>
+
+        <label class="settings-label checkbox-label">
+          <input 
+            type="checkbox" 
+            bind:checked={proxySettings.saveOnlyInScope} 
+            on:change={updateProxySettings}
+          />
+          Only save in-scope items
         </label>
       </div>
     </div>
@@ -569,30 +592,29 @@
   
   .modal-header {
     padding: 15px;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    background-color: #1a1a1a;
-    border-bottom: 1px solid #333;
   }
   
   .modal-header h3 {
     margin: 0;
+    font-size: 16px;
+    font-weight: normal;
     color: #fff;
   }
   
   .close-button {
+    position: absolute;
+    top: 10px;
+    right: 10px;
     background: none;
     border: none;
-    color: #999;
-    font-size: 24px;
+    color: #fff;
+    font-size: 20px;
     cursor: pointer;
   }
   
   .modal-content {
-    padding: 15px;
+    padding: 20px;
     overflow-y: auto;
-    flex: 1;
   }
   
   .instruction-section {
@@ -600,118 +622,18 @@
   }
   
   .instruction-section h4 {
-    margin-top: 0;
+    margin: 0 0 10px 0;
+    color: #fff;
+  }
+  
+  .instruction-section p {
+    margin: 0;
     color: #ddd;
+    white-space: pre-line;
   }
   
   .modal-footer {
-    display: flex;
-    justify-content: flex-end;
     padding: 15px;
-    border-top: 1px solid #333;
-  }
-  
-  .modal-footer button {
-    padding: 8px 15px;
-    background-color: #ff5252;
-    color: white;
-    border: none;
-    border-radius: 4px;
-    cursor: pointer;
-  }
-  
-  /* Custom Headers Styles */
-  .header-form {
-    display: flex;
-    gap: 10px;
-    margin-bottom: 15px;
-    align-items: flex-start;
-  }
-  
-  .header-inputs {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    flex: 1;
-  }
-  
-  .header-input {
-    width: 100%;
-  }
-  
-  .error-message {
-    color: #ff5252;
-    font-size: 14px;
-    margin: 5px 0;
-  }
-  
-  .header-list {
-    margin-top: 20px;
-  }
-  
-  .header-list h4 {
-    color: #ddd;
-    margin-top: 0;
-    margin-bottom: 10px;
-    font-size: 15px;
-    font-weight: normal;
-  }
-  
-  .headers-table {
-    border: 1px solid #444;
-    border-radius: 4px;
-    overflow: hidden;
-  }
-  
-  .headers-table-header {
-    display: grid;
-    grid-template-columns: 1fr 2fr 80px;
-    background-color: #1a1a1a;
-    padding: 10px;
-    font-weight: bold;
-    color: #ddd;
-    border-bottom: 1px solid #444;
-  }
-  
-  .header-item {
-    display: grid;
-    grid-template-columns: 1fr 2fr 80px;
-    padding: 10px;
-    border-bottom: 1px solid #333;
-  }
-  
-  .header-item:last-child {
-    border-bottom: none;
-  }
-  
-  .header-name, .header-value {
-    word-break: break-word;
-    color: #ddd;
-  }
-  
-  .header-action {
-    display: flex;
-    justify-content: center;
-  }
-  
-  .remove-button {
-    width: 24px;
-    height: 24px;
-    background-color: #ff5252;
-    color: white;
-    border: none;
-    border-radius: 50%;
-    cursor: pointer;
-    font-size: 16px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 0;
-  }
-  
-  .no-headers {
-    color: #888;
-    font-style: italic;
-    margin-top: 15px;
+    text-align: right;
   }
 </style>

@@ -15,6 +15,7 @@ export interface ProxySettings {
   port: number;
   autoStart: boolean;
   customHeaders?: Record<string, string>;
+  saveOnlyInScope: boolean;
 }
 
 export interface ScopeSettings {
@@ -44,7 +45,8 @@ export interface RequestDetails {
 const defaultSettings: ProxySettings = {
   port: 8080,
   autoStart: false,
-  customHeaders: {}
+  customHeaders: {},
+  saveOnlyInScope: false
 };
 
 const defaultScopeSettings: ScopeSettings = {
@@ -263,11 +265,15 @@ class ProxyManager {
     try {
       const port = settings.port || this.proxySettings.port;
       
-      // Set custom headers for the proxy server
-      this.proxyServer.setCustomHeaders(this.customHeaders);
-      
-      // Enable SSL interception to capture all HTTPS requests
-      this.proxyServer.setSslInterception(true);
+    // Set custom headers for the proxy server
+    this.proxyServer.setCustomHeaders(this.customHeaders);
+    
+    // Enable SSL interception to capture all HTTPS requests
+    this.proxyServer.setSslInterception(true);
+    
+    // Set scope related settings
+    this.proxyServer.setSaveOnlyInScope(this.proxySettings.saveOnlyInScope);
+    this.proxyServer.setScopeSettings(this.scopeSettings);
       
       // Start the proxy server
       await this.proxyServer.start(port);
@@ -336,6 +342,11 @@ class ProxyManager {
     const needRestart = this.proxyStatus.isRunning && 
                         settings.port !== undefined && 
                         settings.port !== this.proxySettings.port;
+
+    // Update saveOnlyInScope if changed
+    if (settings.saveOnlyInScope !== undefined) {
+      this.proxyServer.setSaveOnlyInScope(settings.saveOnlyInScope);
+    }
     
     // Update settings
     this.proxySettings = { ...this.proxySettings, ...settings };

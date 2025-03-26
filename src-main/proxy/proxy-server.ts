@@ -80,17 +80,23 @@ class ProxyServer extends EventEmitter {
   private isRunning: boolean = false;
   private certificatePath: string | null = null;
   private activeConnections: Set<net.Socket> = new Set();
+  private saveOnlyInScope: boolean = false;
+  private scopeSettings: { inScope: string[]; outOfScope: string[] } | null = null;
 
   constructor(options?: { 
     sslInterception?: boolean; 
     port?: number; 
-    customHeaders?: Record<string, string>
+    customHeaders?: Record<string, string>;
+    saveOnlyInScope?: boolean;
+    scopeSettings?: { inScope: string[]; outOfScope: string[] }
   }) {
     super();
     this.server = null;
     this.sslInterception = options?.sslInterception || false;
     this.port = options?.port || 8080;
     this.customHeaders = options?.customHeaders || {};
+    this.saveOnlyInScope = options?.saveOnlyInScope || false;
+    this.scopeSettings = options?.scopeSettings || null;
     this.certGenerator = new CertificateGenerator();
     
     // Add global unhandled error handling
@@ -123,6 +129,71 @@ class ProxyServer extends EventEmitter {
   setCustomHeaders(headers: Record<string, string>): void {
     this.customHeaders = headers;
     console.log('Custom headers set:', this.customHeaders);
+  }
+
+  /**
+   * Set whether to only save in-scope items
+   */
+  setSaveOnlyInScope(enabled: boolean): void {
+    this.saveOnlyInScope = enabled;
+    console.log(`Save only in-scope items ${enabled ? 'enabled' : 'disabled'}`);
+    if (enabled && this.scopeSettings) {
+      console.log('Current scope settings:', this.scopeSettings);
+    }
+  }
+
+  /**
+   * Set scope settings
+   */
+  setScopeSettings(settings: { inScope: string[]; outOfScope: string[] }): void {
+    this.scopeSettings = settings;
+    console.log('Scope settings updated:', settings);
+  }
+
+  /**
+   * Check if a host is in scope
+   */
+  private isInScope(host: string): boolean {
+    if (!this.scopeSettings) {
+      // If no scope settings, consider everything in scope
+      return true;
+    }
+
+    // Check out-of-scope first (explicit exclusions take precedence)
+    for (const pattern of this.scopeSettings.outOfScope) {
+      if (this.matchesPattern(host, pattern)) {
+        return false;
+      }
+    }
+
+    // Check in-scope patterns
+    for (const pattern of this.scopeSettings.inScope) {
+      if (this.matchesPattern(host, pattern)) {
+        return true;
+      }
+    }
+
+    // If no in-scope patterns match, consider out of scope
+    return false;
+  }
+
+  /**
+   * Check if host matches a scope pattern (supports wildcards)
+   */
+  private matchesPattern(host: string, pattern: string): boolean {
+    // Simple exact match
+    if (pattern === host) {
+      return true;
+    }
+
+    // Wildcard match (e.g. *.example.com)
+    if (pattern.startsWith('*.')) {
+      const domain = pattern.substring(2);
+      return host.endsWith(domain) || 
+             host === domain.substring(1); // Also match example.com for *.example.com
+    }
+
+    return false;
   }
 
   /**
@@ -204,8 +275,10 @@ class ProxyServer extends EventEmitter {
         console.error('Error collecting request body:', error);
       }
       
-      // Emit request started event
-      this.emit('request', requestDetails);
+          // Only emit request if we're saving all or it's in scope
+          if (!this.saveOnlyInScope || this.isInScope(requestDetails.host)) {
+            this.emit('request', requestDetails);
+          }
     });
 
     // Capture response data
@@ -226,8 +299,10 @@ class ProxyServer extends EventEmitter {
       requestDetails.responseTime = Date.now() - startTime;
       requestDetails.error = err.message;
       
-      // Emit response event
-      this.emit('response', requestDetails);
+          // Only emit response if we're saving all or it's in scope
+          if (!this.saveOnlyInScope || this.isInScope(requestDetails.host)) {
+            this.emit('response', requestDetails);
+          }
     });
 
     // Capture the response
@@ -251,8 +326,10 @@ class ProxyServer extends EventEmitter {
           requestDetails.responseLength = responseData.length; // Keep original length for metrics
           requestDetails.responseTime = Date.now() - startTime;
           
-          // Emit response event
-          this.emit('response', requestDetails);
+          // Only emit response if we're saving all or it's in scope
+          if (!this.saveOnlyInScope || this.isInScope(requestDetails.host)) {
+            this.emit('response', requestDetails);
+          }
         } catch (err) {
           console.error('Error processing response:', err);
         }
@@ -443,8 +520,10 @@ class ProxyServer extends EventEmitter {
               console.error('Error collecting HTTPS request body:', error);
             }
             
-            // Emit request started event for the actual HTTPS request
+          // Only emit request if we're saving all or it's in scope
+          if (!this.saveOnlyInScope || this.isInScope(secureRequestDetails.host)) {
             this.emit('request', secureRequestDetails);
+          }
           });
 
           // Create proxy for HTTPS request
@@ -468,8 +547,10 @@ class ProxyServer extends EventEmitter {
             secureRequestDetails.responseTime = Date.now() - secureStartTime;
             secureRequestDetails.error = err.message;
             
-            // Emit response event for the HTTPS request
+          // Only emit response if we're saving all or it's in scope
+          if (!this.saveOnlyInScope || this.isInScope(secureRequestDetails.host)) {
             this.emit('response', secureRequestDetails);
+          }
           });
 
           // Capture the response
@@ -495,8 +576,10 @@ class ProxyServer extends EventEmitter {
                 }
                 secureRequestDetails.responseTime = Date.now() - secureStartTime;
                 
-                // Emit response event for the HTTPS request
-                this.emit('response', secureRequestDetails);
+                // Only emit response if we're saving all or it's in scope
+                if (!this.saveOnlyInScope || this.isInScope(secureRequestDetails.host)) {
+                  this.emit('response', secureRequestDetails);
+                }
               } catch (err) {
                 console.error('Error processing HTTPS response:', err);
               }
@@ -544,8 +627,10 @@ class ProxyServer extends EventEmitter {
             protocol: 'https'
           };
           
-          // Emit request event for WebSocket upgrade
-          this.emit('request', wsRequestDetails);
+          // Only emit request if we're saving all or it's in scope
+          if (!this.saveOnlyInScope || this.isInScope(wsRequestDetails.host)) {
+            this.emit('request', wsRequestDetails);
+          }
           
           // Handle WebSocket connections
           const targetHost = req.headers.host || hostname;
@@ -573,8 +658,10 @@ class ProxyServer extends EventEmitter {
             wsRequestDetails.status = 101;
             wsRequestDetails.responseTime = Date.now() - wsStartTime;
             
-            // Emit response event for WebSocket
+          // Only emit response if we're saving all or it's in scope
+          if (!this.saveOnlyInScope || this.isInScope(wsRequestDetails.host)) {
             this.emit('response', wsRequestDetails);
+          }
             
             // Connect the target and client sockets
             targetConnection.pipe(socket);
@@ -706,7 +793,8 @@ class ProxyServer extends EventEmitter {
       port: this.port,
       certificatePath: this.certificatePath,
       customHeaders: this.customHeaders,
-      sslInterception: this.sslInterception
+      sslInterception: this.sslInterception,
+      saveOnlyInScope: this.saveOnlyInScope
     };
   }
 

@@ -18,6 +18,32 @@ export interface RepeaterResponse {
   };
 }
 
+// Add this to your repeater store file
+
+// Function to reorder the repeater requests
+export function reorderRepeaterRequests(newOrder: number[]) {
+  repeaterRequests.update(requests => {
+    // Create a new array with the requests in the new order
+    const reorderedRequests = newOrder.map(index => requests[index]);
+    
+    // Update request numbers to match new order
+    reorderedRequests.forEach((request, index) => {
+      request.requestNumber = index + 1;
+    });
+    
+    // If we have a selected request, update the selected index
+    if (get(selectedRepeaterIndex) !== -1) {
+      const selectedId = get(selectedRepeaterRequest)?.repeaterId;
+      if (selectedId) {
+        const newIndex = reorderedRequests.findIndex(req => req.repeaterId === selectedId);
+        selectedRepeaterIndex.set(newIndex);
+      }
+    }
+    
+    return reorderedRequests;
+  });
+}
+
 export interface RepeaterRequest extends CapturedRequest {
   repeaterId: number;
   requestNumber: number;
@@ -172,6 +198,12 @@ if (typeof window !== 'undefined' && window.electronAPI) {
     if (data.action === 'new') {
       // Clear existing requests when a new project is created
       clearRepeaterRequests();
+    } else if (data.action === 'open' && data.project) {
+      // Clear existing requests and load project requests when opening an existing project
+      clearRepeaterRequests();
+      data.project.requests?.forEach(request => {
+        addRepeaterRequest(request);
+      });
     }
   });
   
