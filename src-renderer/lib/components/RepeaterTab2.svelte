@@ -13,6 +13,7 @@
       navigateRepeaterResponse,
       addRepeaterResponse,
       type RepeaterResponse,
+      type RepeaterRequest,
       reorderRepeaterRequests // Add this function to your store
     } from '$lib/stores/repeater';
   
@@ -79,9 +80,12 @@
         // Listen for requests sent to repeater
         window.electronAPI.receive('send-to-repeater', (request: CapturedRequest) => {
           console.log('Received request in repeater:', request);
-          // We need to cast or convert the CapturedRequest to RepeaterRequest
-          // The addRepeaterRequest function will add the repeaterId
-          addRepeaterRequest(request as any);
+          // Create a new request object with required id
+          const requestWithId = {
+            ...request,
+            id: request.id // Ensure id is present
+          };
+          addRepeaterRequest(requestWithId);
         });
       }
       
@@ -275,7 +279,7 @@
     }
     
     // Format request as a string
-    function formatRequestString(request: CapturedRequest): string {
+    function formatRequestString(request: RepeaterRequest): string {
       return `${request.method} ${request.path} HTTP/1.1
   Host: ${request.host}
   ${Object.entries(request.headers || {})
@@ -352,7 +356,8 @@
             host: url.host,
             path: url.pathname + url.search,
             headers: currentResponse.requestData.headers,
-            body: currentResponse.requestData.body
+            body: currentResponse.requestData.body,
+            id: $selectedRepeaterRequest.id // Ensure id is present
           });
           return;
         } catch (error) {
@@ -361,7 +366,10 @@
       }
       
       // Fall back to the request's current state
-      requestContent = formatRequestString($selectedRepeaterRequest);
+      requestContent = formatRequestString({
+        ...$selectedRepeaterRequest,
+        id: $selectedRepeaterRequest.id // Ensure id is present
+      });
     }
   
     // Update request content when:

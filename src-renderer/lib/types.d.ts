@@ -1,4 +1,4 @@
-declare global {
+export declare global {
   interface Window {
     electronAPI?: {
       // Core functions from exposeInRenderer
@@ -119,7 +119,7 @@ declare global {
 
   // Interface for captured HTTP/HTTPS requests
   interface CapturedRequest {
-    id: number;
+    id?: number;
     host: string;
     method: string;
     path: string;
@@ -137,4 +137,4 @@ declare global {
   }
 }
 
-export {};
+export { CapturedRequest };

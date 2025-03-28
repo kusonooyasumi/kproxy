@@ -207,8 +207,14 @@ ${response.requestData.body || '(empty)'}`;
   // Parse the edited request content back into a request object
   function parseRequestContent(content: string, originalRequest: typeof $selectedRepeaterRequest): typeof $selectedRepeaterRequest {
     try {
-      // Make a deep copy of the original request
-      const parsedRequest = JSON.parse(JSON.stringify(originalRequest));
+      // Create a completely new request object with only the essential properties
+      const parsedRequest = {
+        ...JSON.parse(JSON.stringify(originalRequest)),
+        headers: {},
+        body: '',
+        responses: [],
+        currentResponseIndex: -1
+      };
       
       // Split the content into lines
       const lines = content.split('\n');
@@ -222,8 +228,10 @@ ${response.requestData.body || '(empty)'}`;
         }
       }
       
-      // Reset headers
+      // Initialize with empty headers and fresh response array
       parsedRequest.headers = {};
+      parsedRequest.responses = [];
+      parsedRequest.currentResponseIndex = -1;
       
       // Parse headers
       let i = 1; // Start from line after the first line

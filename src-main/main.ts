@@ -293,11 +293,8 @@ app.on('ready', () => {
   ffufModule.init();
   ffufModule.registerIpcHandlers();
   
-  // Start with the startup dialog (uncomment to use)
-  createStartupDialog();
-  
-  // For development, you can directly create the main window instead
-  // createWindow();
+  // Start directly with main window
+  createWindow();
   
   // Register IPC handlers for tab management
   registerTabManagementHandlers();
@@ -322,36 +319,19 @@ app.on('activate', () => {
 
 // Save project before quitting
 app.on('before-quit', async (event) => {
-  // Check if there's a current project with unsaved changes
+  // Check if there's a current project with a saved path
   const currentProject = projectModule.getCurrentProject();
-  if (currentProject && projectModule.hasUnsavedChanges()) {
-    // We have unsaved changes
-    event.preventDefault();
-    
-    // Show confirmation dialog
-    const { response } = await dialog.showMessageBox({
-      type: 'question',
-      buttons: ['Save', 'Don\'t Save', 'Cancel'],
-      title: 'Save changes',
-      message: 'Do you want to save changes to the current project?'
-    });
-    
-    if (response === 0) { // Save
-      try {
-        // Save the project
-        await projectModule.saveProject(currentProject);
-        // Now quit
-        app.quit();
-      } catch (error) {
-        // Show error and don't quit
-        dialog.showErrorBox('Error saving project', (error as Error).message);
-      }
-    } else if (response === 1) { // Don't Save
-      // Quit without saving
-      app.quit();
+  const projectPath = projectModule.getProjectPath();
+  
+  if (currentProject && projectPath) {
+    // We have a saved project - save automatically without prompting
+    try {
+      await projectModule.saveProject(currentProject);
+    } catch (error) {
+      console.error('Error auto-saving project:', error);
     }
-    // If 'Cancel', do nothing and don't quit
   }
+  // For new unsaved projects (no path), just quit without saving
 });
 
 // In this file you can include the rest of your app's specific main process

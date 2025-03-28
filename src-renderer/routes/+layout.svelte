@@ -6,7 +6,7 @@
 	let { children } = $props();
 
 	$effect(() => {
-		window.setTitleBarColors('#2a2a2a', '#fff');
+		window.setTitleBarColors('#212121', '#fff');
 	});
 </script>
 

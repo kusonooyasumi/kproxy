@@ -2,6 +2,8 @@
   import { Pane, Splitpanes } from 'svelte-splitpanes';
   import { onMount, onDestroy, createEventDispatcher } from 'svelte';
   import { writable } from 'svelte/store';
+  import RequestTable from './RequestTable.svelte';
+  import RequestPanel from './RequestPanel.svelte';
   import { tick } from 'svelte';
   import CodeMirror from "svelte-codemirror-editor";
   import { oneDark } from "@codemirror/theme-one-dark";
@@ -10,6 +12,7 @@
   import { scopeStore, type ScopeSettings } from '$lib/stores/scope';
   import { addRepeaterRequest } from '$lib/stores/repeater';
   import { projectState } from '$lib/stores/project';
+  import '$lib/styles/requests.css'
   
   // Add search functionality
   let searchText = '';
@@ -38,8 +41,6 @@
     chrome: ''
   };
 
-  let responseContent = '';
-  let requestContent = '';
   // Scope filter state
   let showFilterOptions = false;
   let scopeOnly = false;
@@ -367,108 +368,9 @@
     showFilterOptions = !showFilterOptions;
   }
   
-  function formatFullRequest(request: CapturedRequest | null) {
-    if (!request) return '';
-    
-    let formattedRequest = '';
-    
-    // Request line
-    formattedRequest += `${request.method} ${request.path} HTTP/1.1\r\n`;
-    
-    // Host header
-    formattedRequest += `Host: ${request.host}\r\n`;
-    
-    // Request headers
-    if (request.headers) {
-      for (const [key, value] of Object.entries(request.headers)) {
-        if (key.toLowerCase() !== 'host') { // Skip host header as we already added it
-          formattedRequest += `${key}: ${value}\r\n`;
-        }
-      }
-    }
-    
-    // Empty line separating headers from body
-    formattedRequest += '\r\n';
-    
-    // Request body
-    if (request.body) {
-      try {
-        // Try to parse and format JSON body
-        const parsedJson = JSON.parse(request.body);
-        formattedRequest += JSON.stringify(parsedJson, null, 2);
-      } catch (e) {
-        // Use raw body if not JSON
-        formattedRequest += request.body;
-      }
-    }
-    
-    return formattedRequest;
-  }
-  
-  // Format full response with status, headers, and body
-  function formatFullResponse(request: CapturedRequest | null) {
-    if (!request) return '';
-    if (!request.status) return 'No response received';
-    
-    let formattedResponse = '';
-    
-    // Status line
-    formattedResponse += `HTTP/1.1 ${request.status} ${getStatusText(request.status)}\r\n`;
-    
-    // Response headers
-    if (request.responseHeaders) {
-      for (const [key, value] of Object.entries(request.responseHeaders)) {
-        formattedResponse += `${key}: ${value}\r\n`;
-      }
-    }
-    
-    // Empty line separating headers from body
-    formattedResponse += '\r\n';
-    
-    // Response body
-    if (request.responseBody) {
-      try {
-        // Try to parse and format JSON body
-        const parsedJson = JSON.parse(request.responseBody);
-        formattedResponse += JSON.stringify(parsedJson, null, 2);
-      } catch (e) {
-        // Use raw body if not JSON
-        formattedResponse += request.responseBody;
-      }
-    }
-    
-    return formattedResponse;
-  }
-
-  // Get HTTP status text for a status code
-  function getStatusText(status: number) {
-    const statusTexts = {
-      200: 'OK',
-      201: 'Created',
-      204: 'No Content',
-      301: 'Moved Permanently',
-      302: 'Found',
-      304: 'Not Modified',
-      400: 'Bad Request',
-      401: 'Unauthorized',
-      403: 'Forbidden',
-      404: 'Not Found',
-      405: 'Method Not Allowed',
-      418: 'I\'m a teapot',
-      429: 'Too Many Requests',
-      500: 'Internal Server Error',
-      502: 'Bad Gateway',
-      503: 'Service Unavailable',
-      504: 'Gateway Timeout'
-    };
-    
-    return statusTexts[status as keyof typeof statusTexts] || 'Unknown Status';
-  }
 
   function selectRequest(request: CapturedRequest) {
     selectedRequest = request;
-    responseContent = formatFullResponse(selectedRequest)
-    requestContent = formatFullRequest(selectedRequest)
   }
 
   // Send request to repeater
@@ -602,14 +504,28 @@
           selectedRequest = null;
           // Reset sorting
           sortConfig = [];
+        } else if (data.action === 'open') {
+          // Load saved requests when a project is opened
+          const projectRequests = [
+            ...(data.project.requests || []),
+            ...(data.project.repeaterRequests || [])
+          ];
+          
+          // Merge requests while maintaining uniqueness
+          const uniqueRequests = projectRequests.reduce((acc: CapturedRequest[], request) => {
+            if (!acc.some(r => r.id === request.id)) {
+              acc.push(request);
+            }
+            return acc;
+          }, []);
+          
+          requests = uniqueRequests;
+          selectedRequest = null;
         }
         
         // Update scope settings if available in the project
         if (data.project.scopes) {
           scopeStore.set(data.project.scopes);
-        }
-        else {
-          
         }
       });
     }
@@ -676,8 +592,8 @@
     </div>
   </div>
 </div>
-<div class="main-panel">
-    <!-- Certificate Installation Instructions Modal -->
+<div class="requests-main-panel">
+  <!-- Certificate Installation Instructions Modal -->
     {#if showCertInstructions}
       <div class="modal-overlay">
         <div class="modal-container">
@@ -723,821 +639,49 @@
   <Pane>
     <Splitpanes theme="modern-theme" horizontal style="">
       <Pane>
-        <div class="table-container">
-          <table class="request-table">
-            <thead>
-              <tr>
-                {#each $columnsStore as column}
-                  {#if column.visible}
-                    <th 
-                      on:click={() => handleHeaderClick(column.id)}
-                      on:contextmenu={showColumnMenu}
-                      class:sorted={getSortIndicator(column.id) !== ''}
-                      title={getSortIndicator(column.id) ? `Sorted ${getSortIndicator(column.id) === '▲' ? 'ascending' : 'descending'}` : 'Click to sort, right-click to show/hide columns'}
-                    >
-                      {column.label}
-                      {#if getSortIndicator(column.id)}
-                        <span class="sort-indicator">{getSortIndicator(column.id)}</span>
-                        {#if sortConfig.length > 1}
-                          <span class="sort-priority">{getSortPriority(column.id)}</span>
-                        {/if}
-                      {/if}
-                    </th>
-                  {/if}
-                {/each}
-              </tr>
-            </thead>
-            <tbody>
-              {#if requests.length === 0}
-                <tr>
-                  <td colspan={$columnsStore.filter(col => col.visible).length} class="no-requests">
-                    {#if proxyStatus.isRunning}
-                      No requests captured yet. Configure your browser to use proxy at localhost:{proxyStatus.port}
-                    {:else}
-                      Start the proxy server to capture HTTP/HTTPS requests
-                    {/if}
-                  </td>
-                </tr>
-              {:else}
-                {#each sortedRequests as request (request.id)}
-                  <tr 
-                    class:selected={selectedRequest && selectedRequest.id === request.id}
-                    class:error={request.error}
-                    on:click={() => selectRequest(request)}
-                    on:contextmenu={(e) => showContextMenu(e, request)}
-                  >
-                    {#if $columnsStore.find(col => col.id === 'id')?.visible}
-                      <td>{request.id}</td>
-                    {/if}
-                    {#if $columnsStore.find(col => col.id === 'protocol')?.visible}
-                      <td>{request.protocol}</td>
-                    {/if}
-                    {#if $columnsStore.find(col => col.id === 'host')?.visible}
-                      <td>{request.host}</td>
-                    {/if}
-                    {#if $columnsStore.find(col => col.id === 'method')?.visible}
-                      <td class="method {request.method.toLowerCase()}">{request.method}</td>
-                    {/if}
-                    {#if $columnsStore.find(col => col.id === 'path')?.visible}
-                      <td class="path">{request.path}</td>
-                    {/if}
-                    {#if $columnsStore.find(col => col.id === 'status')?.visible}
-                      <td class="status">
-                        {#if request.status}
-                          <span class="status-code status-{Math.floor(request.status / 100)}xx">{request.status}</span>
-                        {:else}
-                          -
-                        {/if}
-                      </td>
-                    {/if}
-                    {#if $columnsStore.find(col => col.id === 'responseLength')?.visible}
-                      <td>{request.responseLength ? request.responseLength : '-'}</td>
-                    {/if}
-                    {#if $columnsStore.find(col => col.id === 'responseTime')?.visible}
-                      <td>{request.responseTime ? request.responseTime : '-'}</td>
-                    {/if}
-                    {#if $columnsStore.find(col => col.id === 'timestamp')?.visible}
-                      <td>{formatDate(request.timestamp)}</td>
-                    {/if}
-                  </tr>
-                {/each}
-              {/if}
-            </tbody>
-          </table>
-        </div>
+        <RequestTable
+          {requests}
+          {selectedRequest}
+          {sortConfig}
+          columns={columnsStore}
+          {searchText}
+          {useRegex}
+          {statusFilter}
+          {scopeOnly}
+          scopeSettings={scopeSettings}
+          selectRequest={selectRequest}
+          on:contextmenu={(e) => showContextMenu(e.detail.event, e.detail.request)}
+        />
       </Pane>
       <Pane>
         <Splitpanes theme="modern-theme">
           <Pane>
-            <div class="panel request-panel" on:contextmenu={(e) => showPanelContextMenu(e)}>
-              <div class="panel-header">
-                <h3>Request</h3>
-              </div>
-              <div class="panel-content">
-                <div class="line-numbers-wrapper">
-                  {#if selectedRequest}
-                   
-                    <CodeMirror theme={oneDark} bind:value={requestContent} editable={false}/>
-                  {/if}
-                </div>
-              </div>
+            <RequestPanel request={selectedRequest} panelType="request" on:contextmenu={(e) => showPanelContextMenu(e.detail)}/>
           </Pane>
           <Pane>
-            <div class="panel response-panel">
-              <div class="panel-header">
-                <h3>Response</h3>
-              </div>
-              <div class="panel-content">
-                <div class="line-numbers-wrapper">
-                  {#if selectedRequest}
-                   
-                    <CodeMirror theme={oneDark} bind:value={responseContent} editable={false}/>
-                  {/if}
-                </div>
-              </div>
-            </div>
+            <RequestPanel request={selectedRequest} panelType="response"/>
           </Pane>
-        </Splitpanes>
-      </Pane>
-    </Splitpanes>
-  </Pane>
+          </Splitpanes>
+        </Pane>
+      </Splitpanes>
+    </Pane>
+  </Splitpanes>
 
-</Splitpanes>
+  <!-- Context Menu for Requests -->
+  {#if contextMenuVisible && contextMenuRequest}
+    <div 
+      class="context-menu" 
+      style={`left: ${contextMenuX}px; top: ${contextMenuY}px`}
+      on:click|stopPropagation
+    >
+      <div class="menu-item" on:click={() => contextMenuRequest && sendToRepeater(contextMenuRequest)}>
+        Send to Repeater
+      </div>
+      <div class="menu-item" on:click={() => contextMenuRequest && copyRequestUrl(contextMenuRequest)}>
+        Copy URL
+      </div>
+    </div>
+  {/if}
+
+
 </div>
-{#if contextMenuVisible && contextMenuRequest}
-  <div 
-    class="context-menu"
-    style="top: {contextMenuY}px; left: {contextMenuX}px;"
-  >
-    <div class="context-menu-item" on:click={() => {
-      if (contextMenuRequest) sendToRepeater(contextMenuRequest);
-      closeContextMenu();
-    }}>
-      Send to Repeater
-    </div>
-    <div class="context-menu-item" on:click={() => {
-      if (contextMenuRequest) copyRequestUrl(contextMenuRequest);
-      closeContextMenu();
-    }}>
-      Copy URL
-    </div>
-  </div>
-{/if}
-
-<!-- Request Panel Context Menu -->
-{#if panelContextMenuVisible && selectedRequest}
-  <div 
-    class="context-menu"
-    style="top: {panelContextMenuY}px; left: {panelContextMenuX}px;"
-  >
-    <div class="context-menu-item" on:click={() => {
-      if (selectedRequest) sendToRepeater(selectedRequest);
-      closePanelContextMenu();
-    }}>
-      Send to Repeater
-    </div>
-    <div class="context-menu-item" on:click={() => {
-      if (selectedRequest) copyRequestUrl(selectedRequest);
-      closePanelContextMenu();
-    }}>
-      Copy URL
-    </div>
-  </div>
-{/if}
-
-<!-- Column Visibility Context Menu -->
-{#if columnMenuVisible}
-  <div 
-    class="context-menu column-menu"
-    style="top: {columnMenuY}px; left: {columnMenuX}px;"
-    on:click|stopPropagation
-  >
-    <div class="context-menu-header">Show/Hide Columns</div>
-    {#each $columnsStore as column}
-      <label class="context-menu-checkbox">
-        <input 
-          type="checkbox" 
-          checked={column.visible} 
-          on:change={(e) => toggleColumnVisibility(column.id, e)}
-          on:click|stopPropagation
-        />
-        <span>{column.label}</span>
-      </label>
-    {/each}
-  </div>
-{/if}
-
-<style>
-  .main-panel {
-    display: flex;
-    flex-direction: column;
-    flex: 1;
-    background-color: transparent;
-    border-radius: 4px;
-    height: 100%;
-    border: 1px solid #ddd;
-  }
-
-  .requests-container {
-    display: flex;
-    flex-direction: column;
-    height: 100%;
-    width: 100%;
-    background-color: transparent;
-  }  
-  
-  /* Request Controls */
-  .request-controls {
-    padding: 8px 15px;
-    background-color: #1a1a1a;
-    border-radius: 4px;
-    margin-bottom: 10px;
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
-    border: 1px solid #ddd;
-  }
-
-  .control-group {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-  }
-  
-  .status-indicator {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    font-weight: bold;
-    max-width: 300px;
-    white-space: nowrap;
-    text-overflow: ellipsis;
-  }
-  
-  .status-dot {
-    width: 12px;
-    height: 12px;
-    border-radius: 50%;
-    background-color: #777;
-  }
-  
-  .status-indicator.running .status-dot {
-    background-color: #4caf50;
-    box-shadow: 0 0 8px #4caf50;
-  }
-  
-  .control-buttons {
-    display: flex;
-    gap: 10px;
-    max-width: 300px;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-  
-  .control-button {
-    padding: 4px 14px;
-    background-color: #333;
-    border: none;
-    border-radius: 4px;
-    color: #fff;
-    cursor: pointer;
-    transition: background-color 0.2s ease;
-    border: 1px solid #ddd;
-  }
-  
-  .control-button:hover {
-    background-color: #444;
-  }
-  
-  .control-button.active {
-    background-color: #2196f3;
-  }
-  
-  .control-button.active:hover {
-    background-color: #1976d2;
-  }
-  
-  .control-button.start {
-    background-color: #4caf50;
-  }
-  
-  .control-button.start:hover {
-    background-color: #3d8b40;
-  }
-  
-  .control-button.stop {
-    background-color: #f44336;
-  }
-  
-  .control-button.stop:hover {
-    background-color: #d32f2f;
-  }
-  
-  /* Filter dropdown styles */
-  .filter-dropdown {
-    position: relative;
-    display: inline-block;
-  }
-  
-  .dropdown-arrow {
-    font-size: 10px;
-    margin-left: 5px;
-  }
-  
-  .dropdown-content  {
-    margin-top: 5px;
-    position: fixed;
-    right: 10px;
-    background-color: #2a2a2a;
-    border-radius: 4px;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
-    z-index: 100;
-    min-width: 180px;
-    padding: 4px 0;
-    overflow: auto;
-    animation: fadeIn 0.15s ease-out;
-  }
-  
-  .filter-option {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 5px;
-    cursor: pointer;
-    border-radius: 4px;
-  }
-  
-  .filter-option:hover {
-    background-color: #333;
-  }
-  
-  .filter-option input[type="checkbox"] {
-    margin: 0;
-  }
-  
-  .filter-warning {
-    color: #ff9800;
-    font-size: 12px;
-    margin-top: 8px;
-    padding: 5px;
-    border-radius: 4px;
-    background-color: rgba(255, 152, 0, 0.1);
-  }
-  
-  .settings-group {
-    display: flex;
-    gap: 20px;
-    align-items: center;
-  }
-  
-  /* Request Table */
-  .table-container {
-    flex: 1;
-    overflow-y: auto;
-    overflow-x: auto;
-    min-height: 150px;
-    width: 100%;
-    height: 100%;
-    background-color: #1a1a1a;
-    margin-bottom: 10px;
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
-  }
-  
-  .request-table {
-    width: 100%;
-    border-collapse: separate;
-    border-spacing: 0;
-  }
-  
-  .request-table th {
-    background-color: #1a1a1a;
-    text-align: center;
-    color: #ddd;
-    height: 25px;
-    position: sticky;
-    top: 0;
-    z-index: 1;
-    border-bottom: 1px solid #333;
-    max-width: 300px;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    cursor: pointer;
-    user-select: none;
-    transition: background-color 0.2s;
-    padding: 5px 10px;
-  }
-  
-  .request-table th:hover {
-    background-color: #2a2a2a;
-  }
-  
-  .request-table th.sorted {
-    background-color: #2a2a2a;
-    font-weight: bold;
-  }
-  
-  .sort-indicator {
-    margin-left: 5px;
-    color: #ff5252;
-    font-size: 10px;
-  }
-  
-  .sort-priority {
-    display: inline-block;
-    margin-left: 3px;
-    background-color: #ff5252;
-    color: white;
-    font-size: 9px;
-    width: 14px;
-    height: 14px;
-    line-height: 14px;
-    text-align: center;
-    border-radius: 50%;
-  }
-  
-  .request-table td {
-    padding: 5px;
-    border-bottom: 1px solid #333;
-    color: #ddd;
-    text-align: center;
-    max-width: 300px;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-  
-  .request-table tr:hover {
-    background-color: #2a2a2a;
-  }
-  
-  .request-table tr.selected {
-    background-color: #303030;
-  }
-  
-  .request-table tr.error {
-    color: #ff5252;
-  }
-  
-  .method {
-    text-transform: uppercase;
-    font-weight: bold;
-  }
-  
-  .method.get {
-    color: #4caf50;
-  }
-  
-  .method.post {
-    color: #2196f3;
-  }
-  
-  .method.put {
-    color: #ff9800;
-  }
-  
-  .method.delete {
-    color: #f44336;
-  }
-  
-  .method.connect {
-    color: #9c27b0;
-  }
-  
-  .path {
-    max-width: 300px;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-  
-  .status-code {
-    padding: 3px 7px;
-    border-radius: 6px;
-    font-weight: bold;
-  }
-  
-  .status-2xx {
-    background-color: #4caf50;
-    color: #fff;
-  }
-  
-  .status-3xx {
-    background-color: #ff9800;
-    color: #fff;
-  }
-  
-  .status-4xx, .status-5xx {
-    background-color: #f44336;
-    color: #fff;
-  }
-  
-  .no-requests {
-    text-align: center;
-    padding: 30px;
-    color: #888;
-    font-style: italic;
-  }
-  
-  /* Split Panel View */
-  .bottom-container {
-    flex: 1;
-    background-color: #1a1a1a;
-    border-radius: 7px;
-    overflow: hidden;
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
-  }
-  
-  .split-view {
-    display: flex;
-    height: 100%;
-    width: 100%;
-    max-width: 100%;
-  }
-  
-  .panel {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    height: 100%;
-    overflow: hidden;
-    background-color: #1a1a1a;
-  }
-  
-  .request-panel {
-    border-right: 1px solid #333;
-  }
-  
-  .panel-header {
-    padding: 10px 15px;
-    background-color: #1a1a1a;
-    border-bottom: 1px solid #333;
-  }
-  
-  .panel-header h3 {
-    margin: 0;
-    font-size: 14px;
-    font-weight: normal;
-    color: #ddd;
-  }
-  
-  .panel-content {
-    flex: 1;
-    overflow: auto;
-    padding: 0;
-    position: relative;
-    max-width: 100%;
-  }
-  
-  /* Line numbers and content */
-  .line-numbers-wrapper {
-    display: flex;
-    width: 100%;
-    height: 100%;
-    overflow-y: auto;
-  }
-  
-  .line-numbers {
-    background-color: #252525;
-    padding: 12px 8px 12px 8px;
-    text-align: right;
-    color: #888;
-    font-family: monospace;
-    font-size: 12px;
-    user-select: none;
-    min-width: 30px;
-    border-right: 1px solid #333;
-    flex-shrink: 0;
-    position: sticky;
-    left: 0;
-  }
-  
-  .line-number {
-    height: 1.4em;
-  }
-  
-  .content-block {
-    font-family: monospace;
-    white-space: pre-wrap;
-    margin: 0;
-    padding: 12px;
-    background-color: #1a1a1a;
-    color: #fff;
-    box-sizing: border-box;
-    border: none;
-    overflow-x: auto;
-    overflow-y: hidden;
-    flex: 1;
-    font-size: 12px;
-    line-height: 1.4;
-    display: block;
-    max-width: 100%;
-    word-break: break-word;
-  }
-  
-  .no-selection {
-    height: 100%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: #777;
-    font-style: italic;
-  }
-  
-  .detail-item.error {
-    color: #ff5252;
-  }
-  
-  /* Modal */
-  .modal-overlay {
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background-color: rgba(0, 0, 0, 0.7);
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    z-index: 100;
-  }
-  
-  .modal-container {
-    background-color: #2c2c2c;
-    border-radius: 7px;
-    width: 80%;
-    max-width: 800px;
-    max-height: 80%;
-    overflow: hidden;
-    display: flex;
-    flex-direction: column;
-    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.5);
-  }
-  
-  .modal-header {
-    padding: 15px;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    background-color: #1a1a1a;
-    border-bottom: 1px solid #333;
-  }
-  
-  .modal-header h3 {
-    margin: 0;
-    color: #fff;
-  }
-  
-  .close-button {
-    background: none;
-    border: none;
-    color: #999;
-    font-size: 24px;
-    cursor: pointer;
-  }
-  
-  .modal-content {
-    padding: 15px;
-    overflow-y: auto;
-    flex: 1;
-  }
-  
-  .instruction-section {
-    margin-bottom: 20px;
-    background-color: #1a1a1a;
-    padding: 15px;
-    border-radius: 8px;
-  }
-  
-  .instruction-section h4 {
-    margin-top: 0;
-    color: #ddd;
-  }
-  
-  .modal-footer {
-    display: flex;
-    justify-content: flex-end;
-    padding: 15px;
-    border-top: 1px solid #333;
-  }
-  
-  .modal-footer button {
-    padding: 8px 15px;
-    background-color: #ff5252;
-    color: white;
-    border: none;
-    border-radius: 8px;
-    cursor: pointer;
-    transition: background-color 0.2s ease;
-  }
-  
-  .modal-footer button:hover {
-    background-color: #ff3838;
-  }
-  
-  /* Loading Overlay */
-  .loading-overlay {
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background-color: rgba(0, 0, 0, 0.7);
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    align-items: center;
-    z-index: 10;
-    color: #fff;
-    border-radius: 7px;
-  }
-  
-  .loading-spinner {
-    width: 40px;
-    height: 40px;
-    border: 4px solid rgba(255, 255, 255, 0.3);
-    border-top: 4px solid #ff5252;
-    border-radius: 50%;
-    animation: spin 1s linear infinite;
-    margin-bottom: 15px;
-  }
-  
-  @keyframes spin {
-    0% { transform: rotate(0deg); }
-    100% { transform: rotate(360deg); }
-  }
-  
-  /* Context Menu Styles */
-  .context-menu {
-    position: fixed;
-    background-color: #2a2a2a;
-    border-radius: 4px;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
-    z-index: 100;
-    min-width: 180px;
-    padding: 4px 0;
-    overflow: hidden;
-    animation: fadeIn 0.15s ease-out;
-  }
-  
-  .context-menu-item {
-    padding: 8px 16px;
-    cursor: pointer;
-    transition: background-color 0.2s;
-    color: #fff;
-  }
-  
-  .context-menu-item:hover {
-    background-color: #444;
-  }
-  
-  /* Column Menu Styles */
-  .column-menu {
-    padding: 8px;
-  }
-  
-  .context-menu-header {
-    font-weight: bold;
-    padding: 4px 8px 8px 8px;
-    border-bottom: 1px solid #444;
-    margin-bottom: 8px;
-    color: #ddd;
-  }
-  
-  .context-menu-checkbox {
-    display: flex;
-    align-items: center;
-    padding: 4px 8px;
-    cursor: pointer;
-    color: #ddd;
-    gap: 8px;
-  }
-  
-  .context-menu-checkbox:hover {
-    background-color: #444;
-    border-radius: 4px;
-  }
-  
-  .context-menu-checkbox input[type="checkbox"] {
-    margin: 0;
-  }
-  
-  @keyframes fadeIn {
-    from { opacity: 0; transform: scale(0.95); }
-    to { opacity: 1; transform: scale(1); }
-  }
-
-
-  /* Search filter styles */
-  .search-filter, .status-filter {
-    margin-bottom: 8px;
-    padding: 5px;
-  }
-  
-  .search-input, .status-input {
-    width: 100%;
-    padding: 6px 8px;
-    background-color: #333;
-    border: 1px solid #444;
-    border-radius: 4px;
-    color: #fff;
-    margin-bottom: 4px;
-  }
-  
-  .regex-option {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    margin-top: 4px;
-    font-size: 12px;
-    color: #ddd;
-  }
-  
-  .dropdown-content {
-    width: 250px;
-    padding: 10px;
-  }
-
-</style>

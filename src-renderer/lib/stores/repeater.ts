@@ -44,7 +44,8 @@ export function reorderRepeaterRequests(newOrder: number[]) {
   });
 }
 
-export interface RepeaterRequest extends CapturedRequest {
+export interface RepeaterRequest extends Omit<CapturedRequest, 'id'> {
+  id?: number; // Make id optional since we delete it for new repeater requests
   repeaterId: number;
   requestNumber: number;
   name?: string;
@@ -67,34 +68,83 @@ export const selectedRepeaterRequest = derived(
   }
 );
 
-// Function to add a new request to the store
+  // Function to add a new request to the store
 export function addRepeaterRequest(request: CapturedRequest): void {
-  // Clone the request to avoid reference issues
-  const newRequest = JSON.parse(JSON.stringify(request));
+  // Check if this request already exists in the store
+  const existingRequests = get(repeaterRequests);
   
-  // Add unique identifier and request number
-  newRequest.repeaterId = Date.now();
-  newRequest.requestNumber = get(repeaterRequests).length + 1;
-  newRequest.name = `Request ${newRequest.requestNumber}`;
-  newRequest.responses = [];
-  newRequest.currentResponseIndex = -1;
-  
-  repeaterRequests.update(requests => {
-    // Check if request already exists (by id)
-    const existingIndex = requests.findIndex(r => r.id === newRequest.id);
-    if (existingIndex === -1) {
-      // Add as new
-      return [...requests, newRequest];
-    } else {
-      // Replace existing (keep position)
-      const updatedRequests = [...requests];
-      updatedRequests[existingIndex] = newRequest;
-      return updatedRequests;
-    }
+  // Normalize request data for comparison
+  const normalizedRequest = {
+    method: request.method,
+    host: request.host,
+    path: request.path,
+    body: request.body,
+    headers: request.headers ? Object.entries(request.headers)
+      .filter(([key]) => !key.toLowerCase().includes('cookie')) // Ignore cookies
+      .sort(([a], [b]) => a.localeCompare(b))
+      .reduce((acc, [key, val]) => ({...acc, [key]: val}), {})
+    : {}
+  };
+
+  const isDuplicate = existingRequests.some(existing => {
+    // Normalize existing request data
+    const normalizedExisting = {
+      method: existing.method,
+      host: existing.host,
+      path: existing.path,
+      body: existing.body,
+      headers: existing.headers ? Object.entries(existing.headers)
+        .filter(([key]) => !key.toLowerCase().includes('cookie')) // Ignore cookies
+        .sort(([a], [b]) => a.localeCompare(b))
+        .reduce((acc, [key, val]) => ({...acc, [key]: val}), {})
+      : {}
+    };
+
+    return JSON.stringify(normalizedRequest) === JSON.stringify(normalizedExisting);
   });
+
+  if (isDuplicate) {
+    console.log('Duplicate request detected, skipping:', request);
+    return;
+  }
+
+  // Create a completely new request object with stable ID
+  const newRequest: RepeaterRequest = {
+    ...JSON.parse(JSON.stringify(request)),
+    repeaterId: generateStableRequestId(request),
+    requestNumber: existingRequests.length + 1,
+    name: `Request ${existingRequests.length + 1}`,
+    responses: [],
+    currentResponseIndex: -1
+  };
+
+  // Helper function to generate stable ID based on request content
+  function generateStableRequestId(req: CapturedRequest): number {
+    const str = `${req.method}|${req.host}|${req.path}|${req.body}|${
+      req.headers ? Object.entries(req.headers)
+        .filter(([key]) => !key.toLowerCase().includes('cookie'))
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([k,v]) => `${k}:${v}`)
+        .join('|')
+      : ''
+    }`;
+    let hash = 0;
+    for (let i = 0; i < str.length; i++) {
+      const char = str.charCodeAt(i);
+      hash = ((hash << 5) - hash) + char;
+      hash = hash & hash; // Convert to 32bit integer
+    }
+    return hash;
+  }
+
+  // Clear any existing ID to ensure this is treated as new
+  delete newRequest.id;
+  
+  // Add as new request
+  repeaterRequests.update(requests => [...requests, newRequest]);
   
   // Select the newly added request
-  selectRepeaterRequest(get(repeaterRequests).length - 1);
+  selectRepeaterRequest(existingRequests.length);
 }
 
 // Function to select a request by index

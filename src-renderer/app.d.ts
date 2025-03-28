@@ -15,6 +15,7 @@ declare global {
   // Lets typescript know about exposed preload functions
   interface Window {
     electronAPI: ElectronAPI;
+    setTitleBarColors: (backgroundColor: string, textColor: string) => void;
   }
 
   // See https://kit.svelte.dev/docs/types#app
