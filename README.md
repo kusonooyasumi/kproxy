@@ -1,4 +1,4 @@
-#KProxy has moved and been renamed to Kanti!
+# KProxy has moved and been renamed to Kanti!
 ## find the most recent version [here](https://github.com/1342tools/kanti)
 
 # KProxy
