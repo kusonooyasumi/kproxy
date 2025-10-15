@@ -1,3 +1,6 @@
+#KProxy has moved and been renamed to Kanti!
+## find the most recent version [here](https://github.com/1342tools/kanti)
+
 # KProxy
 ![image](https://github.com/user-attachments/assets/022d9a59-1636-48ef-bc3e-a7596a8ddde8)
 
